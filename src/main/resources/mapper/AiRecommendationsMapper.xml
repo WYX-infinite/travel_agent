@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.test.mapper.AiRecommendationsMapper">
+
+    <!-- 通用查询映射结果 -->
+    <resultMap id="BaseResultMap" type="com.test.entity.AiRecommendations">
+        <id column="id" property="id" />
+        <result column="up_id" property="upId" />
+        <result column="destination" property="destination" />
+        <result column="recommendation_reason" property="recommendationReason" />
+        <result column="estimated_cost" property="estimatedCost" />
+        <result column="recommended_accommodation" property="recommendedAccommodation" />
+        <result column="recommended_transportation" property="recommendedTransportation" />
+        <result column="special_tips" property="specialTips" />
+        <result column="created_at" property="createdAt" />
+        <result column="best_season" property="bestSeason" />
+    </resultMap>
+
+    <!-- 通用查询结果列 -->
+    <sql id="Base_Column_List">
+        id, up_id, destination, recommendation_reason, estimated_cost, recommended_accommodation, recommended_transportation, special_tips, created_at, best_season
+    </sql>
+
+</mapper>
