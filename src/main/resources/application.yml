@@ -1,0 +1,53 @@
+spring:
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  application:
+    name: travel-agent
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/travel_agent?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${TRAVEL_DB_USERNAME:${travel.local-secrets.db-username:root}}
+    password: ${TRAVEL_DB_PASSWORD:${travel.local-secrets.db-password:}}
+  data:
+    redis:
+      host: ${TRAVEL_REDIS_HOST:127.0.0.1}
+      port: ${TRAVEL_REDIS_PORT:6379}
+
+server:
+  port: 8181
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+
+langchain4j:
+  open-ai:
+    chat-model:
+      base-url: ${TRAVEL_AI_BASE_URL:${travel.ai.base-url:https://dashscope.aliyuncs.com/compatible-mode/v1}}
+      api-key: ${DASHSCOPE_API_KEY:${travel.local-secrets.dashscope-api-key:}}
+      model-name: ${TRAVEL_CHAT_MODEL:${travel.ai.chat-model:qwen-plus}}
+      max-tokens: ${TRAVEL_MODEL_MAX_OUTPUT_TOKENS:4000}
+      log-requests: false
+      log-responses: false
+    embedding-model:
+      base-url: ${TRAVEL_AI_BASE_URL:${travel.ai.base-url:https://dashscope.aliyuncs.com/compatible-mode/v1}}
+      api-key: ${DASHSCOPE_API_KEY:${travel.local-secrets.dashscope-api-key:}}
+      model-name: ${TRAVEL_EMBEDDING_MODEL:${travel.ai.embedding-model:text-embedding-v3}}
+    streaming-chat-model:
+      base-url: ${TRAVEL_AI_BASE_URL:${travel.ai.base-url:https://dashscope.aliyuncs.com/compatible-mode/v1}}
+      api-key: ${DASHSCOPE_API_KEY:${travel.local-secrets.dashscope-api-key:}}
+      model-name: ${TRAVEL_CHAT_MODEL:${travel.ai.chat-model:qwen-plus}}
+      max-tokens: ${TRAVEL_MODEL_MAX_OUTPUT_TOKENS:4000}
+      log-requests: false
+      log-responses: false
+
+amap:
+  base-url: ${TRAVEL_AMAP_BASE_URL:https://restapi.amap.com}
+  api-key: ${AMAP_WEB_API_KEY:${travel.local-secrets.amap-web-api-key:}}
+
+travel:
+  jwt:
+    secret: ${TRAVEL_JWT_SECRET:${travel.local-secrets.jwt-secret:}}
+    issuer: ${TRAVEL_JWT_ISSUER:travel-planning-agent}
+    access-token-ttl: ${TRAVEL_JWT_ACCESS_TOKEN_TTL:2h}
