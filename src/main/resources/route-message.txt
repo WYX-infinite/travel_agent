@@ -2,7 +2,7 @@
 
 根据用户提供的出发地、目的地、出发日期、优先级和备注信息，生成路线规划结果。
 
-必须直接返回与com.test.vo.RoutePlan完全匹配的JSON对象。
+必须直接返回与com.wyx.travelagent.vo.RoutePlan完全匹配的JSON对象。
 
 【输出规则】
 
