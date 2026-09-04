@@ -6,6 +6,7 @@ travel:
   local-secrets:
     dashscope-api-key: replace-with-your-local-key
     amap-web-api-key: replace-with-your-local-key
-    jwt-secret: replace-with-at-least-32-random-bytes
+    # Base64 text whose decoded value contains at least 32 random bytes.
+    jwt-secret: replace-with-your-base64-encoded-random-secret
     db-username: root
     db-password: replace-with-your-local-password

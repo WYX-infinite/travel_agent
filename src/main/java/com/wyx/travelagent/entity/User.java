@@ -2,6 +2,7 @@ package com.wyx.travelagent.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.wyx.travelagent.auth.Role;
 import java.io.Serializable;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,6 +29,8 @@ public class User implements Serializable {
     private String username;
 
     private String password;
+
+    private Role role;
 
     private Integer age;
 
