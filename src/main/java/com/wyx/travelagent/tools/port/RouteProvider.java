@@ -7,6 +7,7 @@ import com.wyx.travelagent.tools.model.TravelSegment;
 
 public interface RouteProvider {
     ToolResult<TravelSegment> route(
+            String city,
             PlaceCandidate from,
             PlaceCandidate to,
             TravelMode mode
