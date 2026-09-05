@@ -36,10 +36,8 @@ public class Gcj02ToWgs84Converter {
         double sinLatitude = Math.sin(radians);
         double magic = 1.0 - ECCENTRICITY_SQUARED * sinLatitude * sinLatitude;
         double squareRootMagic = Math.sqrt(magic);
-        latitudeOffset = latitudeOffset * 180.0
-                / ((SEMI_MAJOR_AXIS * (1.0 - ECCENTRICITY_SQUARED)) / (magic * squareRootMagic) * Math.PI);
-        longitudeOffset = longitudeOffset * 180.0
-                / (SEMI_MAJOR_AXIS / squareRootMagic * Math.cos(radians) * Math.PI);
+        latitudeOffset = latitudeOffset * 180.0 / ((SEMI_MAJOR_AXIS * (1.0 - ECCENTRICITY_SQUARED)) / (magic * squareRootMagic) * Math.PI);
+        longitudeOffset = longitudeOffset * 180.0 / (SEMI_MAJOR_AXIS / squareRootMagic * Math.cos(radians) * Math.PI);
 
         double projectedLatitude = source.latitude() + latitudeOffset;
         double projectedLongitude = source.longitude() + longitudeOffset;
@@ -84,33 +82,24 @@ public class Gcj02ToWgs84Converter {
             double minimumLongitude,
             double maximumLongitude,
             double minimumLatitude,
-            double maximumLatitude
-    ) {
+            double maximumLatitude) {
         return longitude >= minimumLongitude && longitude <= maximumLongitude
                 && latitude >= minimumLatitude && latitude <= maximumLatitude;
     }
 
     private static double transformLatitude(double x, double y) {
-        double value = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y
-                + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
-        value += (20.0 * Math.sin(6.0 * x * Math.PI)
-                + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
-        value += (20.0 * Math.sin(y * Math.PI)
-                + 40.0 * Math.sin(y / 3.0 * Math.PI)) * 2.0 / 3.0;
-        value += (160.0 * Math.sin(y / 12.0 * Math.PI)
-                + 320.0 * Math.sin(y * Math.PI / 30.0)) * 2.0 / 3.0;
+        double value = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+        value += (20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
+        value += (20.0 * Math.sin(y * Math.PI) + 40.0 * Math.sin(y / 3.0 * Math.PI)) * 2.0 / 3.0;
+        value += (160.0 * Math.sin(y / 12.0 * Math.PI) + 320.0 * Math.sin(y * Math.PI / 30.0)) * 2.0 / 3.0;
         return value;
     }
 
     private static double transformLongitude(double x, double y) {
-        double value = 300.0 + x + 2.0 * y + 0.1 * x * x
-                + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
-        value += (20.0 * Math.sin(6.0 * x * Math.PI)
-                + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
-        value += (20.0 * Math.sin(x * Math.PI)
-                + 40.0 * Math.sin(x / 3.0 * Math.PI)) * 2.0 / 3.0;
-        value += (150.0 * Math.sin(x / 12.0 * Math.PI)
-                + 300.0 * Math.sin(x / 30.0 * Math.PI)) * 2.0 / 3.0;
+        double value = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+        value += (20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0 / 3.0;
+        value += (20.0 * Math.sin(x * Math.PI) + 40.0 * Math.sin(x / 3.0 * Math.PI)) * 2.0 / 3.0;
+        value += (150.0 * Math.sin(x / 12.0 * Math.PI) + 300.0 * Math.sin(x / 30.0 * Math.PI)) * 2.0 / 3.0;
         return value;
     }
 }

@@ -2,12 +2,7 @@ package com.wyx.travelagent.tools.model;
 
 import java.util.Objects;
 
-public record TravelSegment(
-        TravelMode mode,
-        Long distanceMeters,
-        Long durationMinutes,
-        boolean verified
-) {
+public record TravelSegment(TravelMode mode, Long distanceMeters, Long durationMinutes, boolean verified) {
     public TravelSegment {
         Objects.requireNonNull(mode, "mode");
         if (verified) {

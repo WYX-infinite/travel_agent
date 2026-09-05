@@ -18,12 +18,10 @@ public record WeatherResult(List<DailyForecast> dailyForecasts) {
             double minimumTemperatureCelsius,
             double maximumTemperatureCelsius,
             int precipitationProbabilityPercent,
-            double precipitationMillimeters
-    ) {
+            double precipitationMillimeters) {
         public DailyForecast {
             Objects.requireNonNull(date, "date");
-            if (!Double.isFinite(minimumTemperatureCelsius)
-                    || !Double.isFinite(maximumTemperatureCelsius)) {
+            if (!Double.isFinite(minimumTemperatureCelsius) || !Double.isFinite(maximumTemperatureCelsius)) {
                 throw new IllegalArgumentException("temperature must be finite");
             }
             if (minimumTemperatureCelsius > maximumTemperatureCelsius) {

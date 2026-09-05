@@ -43,29 +43,17 @@ public class ProviderConfiguration {
     }
 
     @Bean
-    AmapPlaceProvider amapPlaceProvider(
-            @Qualifier("amapRestClient") RestClient restClient,
-            AmapProperties properties,
-            Clock providerClock
-    ) {
+    AmapPlaceProvider amapPlaceProvider(@Qualifier("amapRestClient") RestClient restClient, AmapProperties properties, Clock providerClock) {
         return new AmapPlaceProvider(restClient, properties, providerClock);
     }
 
     @Bean
-    AmapRouteProvider amapRouteProvider(
-            @Qualifier("amapRestClient") RestClient restClient,
-            AmapProperties properties,
-            Clock providerClock
-    ) {
+    AmapRouteProvider amapRouteProvider(@Qualifier("amapRestClient") RestClient restClient, AmapProperties properties, Clock providerClock) {
         return new AmapRouteProvider(restClient, properties, providerClock);
     }
 
     @Bean
-    OpenMeteoWeatherProvider openMeteoWeatherProvider(
-            @Qualifier("openMeteoRestClient") RestClient restClient,
-            Gcj02ToWgs84Converter converter,
-            Clock providerClock
-    ) {
+    OpenMeteoWeatherProvider openMeteoWeatherProvider(@Qualifier("openMeteoRestClient") RestClient restClient, Gcj02ToWgs84Converter converter, Clock providerClock) {
         return new OpenMeteoWeatherProvider(restClient, converter, providerClock);
     }
 

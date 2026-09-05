@@ -36,22 +36,14 @@ public class OpenMeteoWeatherProvider implements WeatherProvider {
     private final Gcj02ToWgs84Converter converter;
     private final Clock clock;
 
-    public OpenMeteoWeatherProvider(
-            RestClient restClient,
-            Gcj02ToWgs84Converter converter,
-            Clock clock
-    ) {
+    public OpenMeteoWeatherProvider(RestClient restClient, Gcj02ToWgs84Converter converter, Clock clock) {
         this.restClient = Objects.requireNonNull(restClient, "restClient");
         this.converter = Objects.requireNonNull(converter, "converter");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
-    public ToolResult<WeatherResult> forecast(
-            GeoPoint location,
-            LocalDate startDate,
-            LocalDate endDate
-    ) {
+    public ToolResult<WeatherResult> forecast(GeoPoint location, LocalDate startDate, LocalDate endDate) {
         if (location == null) {
             return failure("INVALID_COORDINATE", "weather coordinate is required");
         }
@@ -90,11 +82,7 @@ public class OpenMeteoWeatherProvider implements WeatherProvider {
         }
     }
 
-    private ToolResult<WeatherResult> mapResponse(
-            WeatherResponse response,
-            LocalDate startDate,
-            LocalDate endDate
-    ) {
+    private ToolResult<WeatherResult> mapResponse(WeatherResponse response, LocalDate startDate, LocalDate endDate) {
         if (response == null || response.daily() == null || !sameArrayLengths(response.daily())) {
             return failure("INVALID_PROVIDER_RESPONSE", "weather provider returned an invalid response");
         }

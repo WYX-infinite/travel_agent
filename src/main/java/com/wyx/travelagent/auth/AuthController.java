@@ -42,8 +42,7 @@ public class AuthController {
     private final JwtTokenService tokenService;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public AuthController(UserMapper userMapper, CaptchaService captchaService,
-                          BCryptPasswordEncoder passwordEncoder, JwtTokenService tokenService) {
+    public AuthController(UserMapper userMapper, CaptchaService captchaService, BCryptPasswordEncoder passwordEncoder, JwtTokenService tokenService) {
         this.userMapper = userMapper;
         this.captchaService = captchaService;
         this.passwordEncoder = passwordEncoder;
@@ -66,8 +65,7 @@ public class AuthController {
             return authenticationFailure();
         }
 
-        User user = userMapper.selectOne(new QueryWrapper<User>()
-                .eq("username", request.username()));
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", request.username()));
         if (user == null || !passwordEncoder.matches(request.password(), user.getPassword())) {
             return authenticationFailure();
         }
@@ -76,8 +74,7 @@ public class AuthController {
         CurrentUser currentUser = new CurrentUser(user.getId(), user.getUsername(), role);
         JwtTokenService.IssuedToken issued = tokenService.issueToken(currentUser);
         UserProfile profile = new UserProfile(user.getId(), user.getName(), user.getUsername(), role);
-        return ResponseEntity.ok(ApiResponse.ok(
-                new LoginResponse(issued.value(), "Bearer", issued.expiresAt(), profile)));
+        return ResponseEntity.ok(ApiResponse.ok(new LoginResponse(issued.value(), "Bearer", issued.expiresAt(), profile)));
     }
 
     @GetMapping("/me")
@@ -91,8 +88,7 @@ public class AuthController {
             return unauthorized("current user no longer exists");
         }
         Role role = user.getRole() == null ? currentUser.role() : user.getRole();
-        return ResponseEntity.ok(ApiResponse.ok(
-                new UserProfile(user.getId(), user.getName(), user.getUsername(), role)));
+        return ResponseEntity.ok(ApiResponse.ok(new UserProfile(user.getId(), user.getName(), user.getUsername(), role)));
     }
 
     private ResponseEntity<ApiResponse<?>> authenticationFailure() {
@@ -135,8 +131,7 @@ public class AuthController {
         }
     }
 
-    public record LoginRequest(@NotBlank String username, @NotBlank String password,
-                               @NotBlank String captchaId, @NotBlank String captchaCode) {
+    public record LoginRequest(@NotBlank String username, @NotBlank String password, @NotBlank String captchaId, @NotBlank String captchaCode) {
     }
 
     public record LoginResponse(String accessToken, String tokenType, Instant expiresAt, UserProfile user) {

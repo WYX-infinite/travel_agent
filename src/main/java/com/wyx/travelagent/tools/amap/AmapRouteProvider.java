@@ -38,12 +38,7 @@ public class AmapRouteProvider implements RouteProvider {
     }
 
     @Override
-    public ToolResult<TravelSegment> route(
-            String city,
-            PlaceCandidate from,
-            PlaceCandidate to,
-            TravelMode mode
-    ) {
+    public ToolResult<TravelSegment> route(String city, PlaceCandidate from, PlaceCandidate to, TravelMode mode) {
         if (from == null || to == null || from.location() == null || to.location() == null) {
             return failure("INVALID_COORDINATE", "route coordinates are required");
         }
@@ -76,13 +71,7 @@ public class AmapRouteProvider implements RouteProvider {
         }
     }
 
-    private java.net.URI buildRouteUri(
-            UriBuilder builder,
-            String city,
-            PlaceCandidate from,
-            PlaceCandidate to,
-            TravelMode mode
-    ) {
+    private java.net.URI buildRouteUri(UriBuilder builder, String city, PlaceCandidate from, PlaceCandidate to, TravelMode mode) {
         UriBuilder request = builder.path(endpoint(mode))
                 .queryParam("key", properties.apiKey())
                 .queryParam("origin", coordinate(from.location()))
@@ -99,13 +88,7 @@ public class AmapRouteProvider implements RouteProvider {
         return request.build();
     }
 
-    private static void addPoiIds(
-            UriBuilder request,
-            PlaceCandidate from,
-            PlaceCandidate to,
-            String originParameter,
-            String destinationParameter
-    ) {
+    private static void addPoiIds(UriBuilder request, PlaceCandidate from, PlaceCandidate to, String originParameter, String destinationParameter) {
         if (from.poiId() != null) {
             request.queryParam(originParameter, from.poiId());
         }
@@ -124,9 +107,7 @@ public class AmapRouteProvider implements RouteProvider {
         if (response.route() == null) {
             return failure("INVALID_PROVIDER_RESPONSE", "map provider returned an invalid response");
         }
-        List<RoutePath> paths = mode == TravelMode.TRANSIT
-                ? response.route().transits()
-                : response.route().paths();
+        List<RoutePath> paths = mode == TravelMode.TRANSIT ? response.route().transits() : response.route().paths();
         if (paths == null) {
             return failure("INVALID_PROVIDER_RESPONSE", "map provider returned an invalid response");
         }

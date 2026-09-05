@@ -1,5 +1,6 @@
 package com.wyx.travelagent.tools.amap;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.wyx.travelagent.tools.model.CoordinateSystem;
 import com.wyx.travelagent.tools.model.GeoPoint;
 import com.wyx.travelagent.tools.model.PlaceCandidate;
@@ -111,8 +112,7 @@ public class AmapPlaceProvider implements PlaceProvider {
             if (poi == null || isBlank(poi.id()) || isBlank(poi.name()) || isBlank(poi.address())) {
                 return failure("INVALID_PROVIDER_RESPONSE", "map provider returned an invalid response");
             }
-            candidates.add(new PlaceCandidate(
-                    poi.id(), poi.name(), poi.address(), parseGcj02(poi.location())));
+            candidates.add(new PlaceCandidate(poi.id(), poi.name(), poi.address(), parseGcj02(poi.location())));
         }
         return ToolResult.success(PROVIDER, now(), candidates);
     }
@@ -134,8 +134,7 @@ public class AmapPlaceProvider implements PlaceProvider {
         if (entry == null || isBlank(entry.formattedAddress())) {
             return failure("INVALID_PROVIDER_RESPONSE", "map provider returned an invalid response");
         }
-        PlaceCandidate candidate = new PlaceCandidate(
-                null, requestedAddress, entry.formattedAddress(), parseGcj02(entry.location()));
+        PlaceCandidate candidate = new PlaceCandidate(null, requestedAddress, entry.formattedAddress(), parseGcj02(entry.location()));
         return ToolResult.success(PROVIDER, now(), candidate);
     }
 
@@ -187,8 +186,5 @@ public class AmapPlaceProvider implements PlaceProvider {
 
     private record GeocodeResponse(String status, String infocode, List<GeocodeEntry> geocodes) {}
 
-    private record GeocodeEntry(
-            @com.fasterxml.jackson.annotation.JsonProperty("formatted_address") String formattedAddress,
-            String location
-    ) {}
+    private record GeocodeEntry(@JsonProperty("formatted_address") String formattedAddress, String location) {}
 }

@@ -7,9 +7,5 @@ import com.wyx.travelagent.tools.model.WeatherResult;
 import java.time.LocalDate;
 
 public interface WeatherProvider {
-    ToolResult<WeatherResult> forecast(
-            GeoPoint location,
-            LocalDate startDate,
-            LocalDate endDate
-    );
+    ToolResult<WeatherResult> forecast(GeoPoint location, LocalDate startDate, LocalDate endDate);
 }

@@ -4,14 +4,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
-public record ToolResult<T>(
-        boolean success,
-        String provider,
-        LocalDateTime retrievedAt,
-        T data,
-        String errorCode,
-        String errorMessage
-) {
+public record ToolResult<T>(boolean success, String provider, LocalDateTime retrievedAt,
+                            T data, String errorCode, String errorMessage) {
     public ToolResult {
         requireNonBlank(provider, "provider");
         Objects.requireNonNull(retrievedAt, "retrievedAt");
@@ -37,12 +31,7 @@ public record ToolResult<T>(
         return new ToolResult<>(true, provider, retrievedAt, data, null, null);
     }
 
-    public static <T> ToolResult<T> failure(
-            String provider,
-            LocalDateTime retrievedAt,
-            String errorCode,
-            String errorMessage
-    ) {
+    public static <T> ToolResult<T> failure(String provider, LocalDateTime retrievedAt, String errorCode, String errorMessage) {
         return new ToolResult<>(false, provider, retrievedAt, null, errorCode, errorMessage);
     }
 

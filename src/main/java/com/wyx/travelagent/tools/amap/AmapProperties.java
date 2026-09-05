@@ -6,12 +6,7 @@ import java.time.Duration;
 import java.util.Objects;
 
 @ConfigurationProperties("amap")
-public record AmapProperties(
-        String baseUrl,
-        String apiKey,
-        Duration connectTimeout,
-        Duration readTimeout
-) {
+public record AmapProperties(String baseUrl, String apiKey, Duration connectTimeout, Duration readTimeout) {
     private static final String DEFAULT_BASE_URL = "https://restapi.amap.com";
     private static final Duration DEFAULT_CONNECT_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration DEFAULT_READ_TIMEOUT = Duration.ofSeconds(5);

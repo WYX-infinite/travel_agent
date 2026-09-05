@@ -2,12 +2,7 @@ package com.wyx.travelagent.tools.model;
 
 import java.util.Objects;
 
-public record PlaceCandidate(
-        String poiId,
-        String name,
-        String address,
-        GeoPoint location
-) {
+public record PlaceCandidate(String poiId, String name, String address, GeoPoint location) {
     public PlaceCandidate {
         // A geocoded address may not identify a POI; search results must still supply a real POI ID.
         if (poiId != null && poiId.isBlank()) {
