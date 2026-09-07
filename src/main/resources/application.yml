@@ -51,3 +51,6 @@ travel:
     secret: ${TRAVEL_JWT_SECRET:${travel.local-secrets.jwt-secret:}}
     issuer: ${TRAVEL_JWT_ISSUER:travel-planning-agent}
     access-token-ttl: ${TRAVEL_JWT_ACCESS_TOKEN_TTL:2h}
+  knowledge:
+    index-file: ${TRAVEL_KNOWLEDGE_INDEX_FILE:data/index/knowledge-index.json}
+    rebuild-on-startup: ${TRAVEL_KNOWLEDGE_REBUILD_ON_STARTUP:true}

@@ -1,6 +1,7 @@
 package com.wyx.travelagent.common.api;
 
 import com.wyx.travelagent.knowledge.admin.KnowledgeUploadException;
+import com.wyx.travelagent.knowledge.ingest.KnowledgeIngestionException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -49,6 +50,19 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(KnowledgeUploadException.class)
     public ResponseEntity<ApiResponse<Void>> handleKnowledgeUpload(KnowledgeUploadException exception) {
+        ApiError error = new ApiError(exception.code(), exception.getMessage(), null);
+        return ResponseEntity.status(exception.status()).body(ApiResponse.fail(error));
+    }
+
+    /**
+     * 处理知识入库生命周期给出的脱敏业务错误。
+     *
+     * @param exception 带稳定错误码和 HTTP 状态的入库异常
+     * @return 不包含 SQL、正文、向量、密钥、路径或堆栈的统一错误响应
+     */
+    @ExceptionHandler(KnowledgeIngestionException.class)
+    public ResponseEntity<ApiResponse<Void>> handleKnowledgeIngestion(
+            KnowledgeIngestionException exception) {
         ApiError error = new ApiError(exception.code(), exception.getMessage(), null);
         return ResponseEntity.status(exception.status()).body(ApiResponse.fail(error));
     }

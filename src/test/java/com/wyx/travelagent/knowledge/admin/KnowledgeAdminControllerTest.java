@@ -7,13 +7,18 @@ import com.wyx.travelagent.auth.JwtProperties;
 import com.wyx.travelagent.auth.JwtTokenService;
 import com.wyx.travelagent.auth.Role;
 import com.wyx.travelagent.common.api.GlobalExceptionHandler;
+import com.wyx.travelagent.knowledge.ingest.KnowledgeIngestionService;
+import com.wyx.travelagent.knowledge.ingest.KnowledgeIngestionException;
 import com.wyx.travelagent.knowledge.ingest.TestDocumentFixtures;
 import com.wyx.travelagent.knowledge.ingest.TikaDocumentParser;
+import com.wyx.travelagent.knowledge.model.KnowledgeDocument;
+import com.wyx.travelagent.knowledge.model.KnowledgeDocumentStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.unit.DataSize;
 
@@ -25,6 +30,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 
 class KnowledgeAdminControllerTest {
 
@@ -33,6 +42,7 @@ class KnowledgeAdminControllerTest {
 
     private MockMvc mockMvc;
     private JwtTokenService tokenService;
+    private KnowledgeIngestionService ingestionService;
     private MockMultipartFile textFile;
 
     @BeforeEach
@@ -42,7 +52,19 @@ class KnowledgeAdminControllerTest {
                 uploadRoot, DataSize.ofKilobytes(64), 10_000);
         KnowledgeDocumentUploadService service = new KnowledgeDocumentUploadService(
                 properties, new TikaDocumentParser(10_000));
-        KnowledgeAdminController controller = new KnowledgeAdminController(service);
+        ingestionService = mock(KnowledgeIngestionService.class);
+        when(ingestionService.ingest(any())).thenAnswer(invocation -> {
+            KnowledgeDocument source = invocation
+                    .<com.wyx.travelagent.knowledge.admin.UploadedKnowledgeDocument>getArgument(0)
+                    .document();
+            return new KnowledgeDocument(
+                    42L, source.title(), source.city(), source.publisher(), source.sourceUrl(),
+                    source.publishedAt(), source.documentType(), source.originalFilename(),
+                    source.storedFilename(), source.contentType(), source.fileSize(), source.sha256(),
+                    KnowledgeDocumentStatus.ACTIVE, null, source.uploadedBy(),
+                    source.createdAt(), source.updatedAt());
+        });
+        KnowledgeAdminController controller = new KnowledgeAdminController(service, ingestionService);
         tokenService = new JwtTokenService(
                 new JwtProperties(System.getenv("TRAVEL_JWT_SECRET"),
                         "travel-planning-agent", Duration.ofHours(2)));
@@ -66,10 +88,29 @@ class KnowledgeAdminControllerTest {
         mockMvc.perform(validUpload(adminToken()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(42))
                 .andExpect(jsonPath("$.data.title").value("西湖游览说明"))
-                .andExpect(jsonPath("$.data.status").value("UPLOADED"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data.sha256").isString())
                 .andExpect(jsonPath("$.error").doesNotExist());
+    }
+
+    @Test
+    void ingestionFailureUsesStableUnifiedErrorWithoutLeakingCause() throws Exception {
+        doThrow(new KnowledgeIngestionException(
+                "KNOWLEDGE_INDEX_PERSIST_FAILED",
+                "knowledge index could not be atomically persisted",
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                new IllegalStateException("C:\\private\\index API_KEY 正文向量")))
+                .when(ingestionService).ingest(any());
+
+        mockMvc.perform(validUpload(adminToken()))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.code").value("KNOWLEDGE_INDEX_PERSIST_FAILED"))
+                .andExpect(jsonPath("$.error.message")
+                        .value("knowledge index could not be atomically persisted"))
+                .andExpect(jsonPath("$.error.details").doesNotExist());
     }
 
     @Test

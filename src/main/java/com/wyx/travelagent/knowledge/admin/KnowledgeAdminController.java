@@ -3,6 +3,7 @@ package com.wyx.travelagent.knowledge.admin;
 import com.wyx.travelagent.auth.CurrentUser;
 import com.wyx.travelagent.auth.CurrentUserContext;
 import com.wyx.travelagent.common.api.ApiResponse;
+import com.wyx.travelagent.knowledge.ingest.KnowledgeIngestionService;
 import com.wyx.travelagent.knowledge.model.KnowledgeDocument;
 import com.wyx.travelagent.knowledge.model.KnowledgeDocumentType;
 import org.springframework.http.HttpStatus;
@@ -23,20 +24,26 @@ import java.util.Objects;
  * 暴露管理员知识文档上传入口，并沿用现有 {@code /api/admin/**} JWT 角色鉴权。
  * <p>
  * Controller 接收 multipart 字段，从 CurrentUserContext 读取上传用户并返回统一 ApiResponse；
- * 元数据校验、类型检测、解析和文件存储均委托服务，本类不访问来源 URL、不写数据库，也不实现任务九索引。
+ * 元数据校验、类型检测、解析和文件存储委托上传服务，数据库状态机与索引发布委托入库服务。
+ * 本类不访问来源 URL，也不直接持有事务或远程模型调用。
  */
 @RestController
 @RequestMapping("/api/admin/knowledge-documents")
 public class KnowledgeAdminController {
     private final KnowledgeDocumentUploadService uploadService;
+    private final KnowledgeIngestionService ingestionService;
 
     /**
      * 创建保持轻量的管理员上传 Controller。
      *
      * @param uploadService 承担全部上传校验、解析和存储规则的服务
+     * @param ingestionService 承担数据库状态机、Embedding 和原子索引发布的服务
      */
-    public KnowledgeAdminController(KnowledgeDocumentUploadService uploadService) {
+    public KnowledgeAdminController(
+            KnowledgeDocumentUploadService uploadService,
+            KnowledgeIngestionService ingestionService) {
         this.uploadService = Objects.requireNonNull(uploadService, "uploadService");
+        this.ingestionService = Objects.requireNonNull(ingestionService, "ingestionService");
     }
 
     /**
@@ -71,8 +78,10 @@ public class KnowledgeAdminController {
                 sourceUrl,
                 parsePublishedAt(publishedAt),
                 parseDocumentType(documentType));
-        KnowledgeDocument document = uploadService.upload(file, request, currentUser.userId()).document();
+        UploadedKnowledgeDocument uploaded = uploadService.upload(file, request, currentUser.userId());
+        KnowledgeDocument document = ingestionService.ingest(uploaded);
         KnowledgeDocumentUploadResponse response = new KnowledgeDocumentUploadResponse(
+                document.id(),
                 document.title(),
                 document.status(),
                 document.originalFilename(),
