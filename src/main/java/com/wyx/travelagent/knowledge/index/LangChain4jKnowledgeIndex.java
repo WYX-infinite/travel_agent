@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BooleanSupplier;
@@ -29,8 +30,8 @@ import java.util.function.BooleanSupplier;
  * 使用 LangChain4j {@link EmbeddingModel} 和 {@link InMemoryEmbeddingStore} 实现版本化磁盘索引。
  * <p>
  * 输入为数据库已持久化的知识切片，输出为基础相似度匹配；正式 JSON 同时记录格式版本、模型标识、
- * 向量维度、数据库关联和正文。上传与数据库状态机由入库服务负责，城市过滤、阈值、Top 8/Top 5
- * 以及引用校验属于任务十，本类不提前实现。
+ * 向量维度、数据库关联和正文。上传与数据库状态机由入库服务负责；本类只执行数据库提供的
+ * 切片白名单约束，不解释城市或 ACTIVE 语义，也不负责阈值、Top 8/Top 5 与引用校验规则。
  * <p>
  * 本地正式文件采用“单 JVM、单写者”部署前置条件；进程内读写锁不能协调多个应用实例共享同一路径。
  * 多实例部署必须由外部单一写入者或后续独立向量存储提供协调，不能把本类误当作分布式文件锁。
@@ -170,6 +171,30 @@ public final class LangChain4jKnowledgeIndex implements KnowledgeIngestionIndex 
 
     @Override
     public List<KnowledgeMatch> search(KnowledgeQuery query, int maxResults) {
+        return searchInternal(query, null, maxResults);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<KnowledgeMatch> search(
+            KnowledgeQuery query, Set<Long> allowedChunkIds, int maxResults) {
+        Objects.requireNonNull(allowedChunkIds, "allowedChunkIds");
+        if (allowedChunkIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new IllegalArgumentException("allowedChunkIds must contain only positive ids");
+        }
+        if (maxResults <= 0) {
+            throw new IllegalArgumentException("maxResults must be positive");
+        }
+        if (allowedChunkIds.isEmpty()) {
+            return List.of();
+        }
+        return searchInternal(query, Set.copyOf(allowedChunkIds), maxResults);
+    }
+
+    private List<KnowledgeMatch> searchInternal(
+            KnowledgeQuery query, Set<Long> allowedChunkIds, int maxResults) {
         Objects.requireNonNull(query, "query");
         if (maxResults <= 0) {
             throw new IllegalArgumentException("maxResults must be positive");
@@ -203,6 +228,8 @@ public final class LangChain4jKnowledgeIndex implements KnowledgeIngestionIndex 
                         .build()).matches();
         return raw.stream()
                 .map(match -> toKnowledgeMatch(match, current.byEmbeddingId))
+                /* 数据库白名单是城市和 ACTIVE 状态的事实源，必须在 Top K 截断之前生效。 */
+                .filter(match -> allowedChunkIds == null || allowedChunkIds.contains(match.chunkId()))
                 .sorted(Comparator.comparingDouble(KnowledgeMatch::score).reversed()
                         .thenComparing(KnowledgeMatch::documentId)
                         .thenComparingInt(KnowledgeMatch::chunkIndex))

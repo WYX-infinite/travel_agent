@@ -4,6 +4,7 @@ import com.wyx.travelagent.knowledge.model.KnowledgeChunk;
 import com.wyx.travelagent.knowledge.model.KnowledgeDocument;
 import com.wyx.travelagent.knowledge.model.KnowledgeDocumentStatus;
 import com.wyx.travelagent.knowledge.model.KnowledgeDocumentType;
+import com.wyx.travelagent.knowledge.retrieval.KnowledgeRetrievalMetadata;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.Configuration;
@@ -18,6 +19,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -73,6 +75,7 @@ class KnowledgeMapperSqlContractTest {
         configuration.setMapUnderscoreToCamelCase(true);
         configuration.addMapper(KnowledgeDocumentMapper.class);
         configuration.addMapper(KnowledgeChunkMapper.class);
+        configuration.addMapper(KnowledgeRetrievalMapper.class);
         sessionFactory = new SqlSessionFactoryBuilder().build(configuration);
     }
 
@@ -121,6 +124,68 @@ class KnowledgeMapperSqlContractTest {
             assertThatThrownBy(() ->
                     documents.insert(KnowledgeDocumentRow.from(document('b', now.plusSeconds(1)))))
                     .hasRootCauseInstanceOf(java.sql.SQLException.class);
+        }
+    }
+
+    @Test
+    void retrievalMapperReturnsOneStableBatchForOnlyActiveTargetCity() {
+        Instant now = Instant.parse("2026-09-07T04:00:00Z");
+        try (SqlSession session = sessionFactory.openSession(false)) {
+            KnowledgeDocumentMapper documents = session.getMapper(KnowledgeDocumentMapper.class);
+            KnowledgeChunkMapper chunks = session.getMapper(KnowledgeChunkMapper.class);
+            KnowledgeDocumentRow hangzhou = KnowledgeDocumentRow.from(document('c', now));
+            hangzhou.setStatus("ACTIVE");
+            KnowledgeDocumentRow inactive = KnowledgeDocumentRow.from(document('d', now));
+            inactive.setStatus("FAILED");
+            KnowledgeDocumentRow shanghai = KnowledgeDocumentRow.from(document('e', now));
+            shanghai.setStatus("ACTIVE");
+            shanghai.setCity("上海");
+            documents.insert(hangzhou);
+            documents.insert(inactive);
+            documents.insert(shanghai);
+            chunks.insert(KnowledgeChunkRow.from(new KnowledgeChunk(
+                    null, hangzhou.getId(), 1, "杭州第二片", "knowledge:" + hangzhou.getId() + ":chunk:1", now)));
+            chunks.insert(KnowledgeChunkRow.from(new KnowledgeChunk(
+                    null, hangzhou.getId(), 0, "杭州第一片", "knowledge:" + hangzhou.getId() + ":chunk:0", now)));
+            chunks.insert(KnowledgeChunkRow.from(new KnowledgeChunk(
+                    null, inactive.getId(), 0, "失效片", "knowledge:" + inactive.getId() + ":chunk:0", now)));
+            chunks.insert(KnowledgeChunkRow.from(new KnowledgeChunk(
+                    null, shanghai.getId(), 0, "上海片", "knowledge:" + shanghai.getId() + ":chunk:0", now)));
+
+            List<KnowledgeRetrievalRow> rows = session.getMapper(KnowledgeRetrievalMapper.class)
+                    .findActiveByCity("杭州");
+
+            assertThat(rows).hasSize(2)
+                    .extracting(KnowledgeRetrievalRow::getChunkIndex).containsExactly(0, 1);
+            assertThat(rows).allSatisfy(row -> {
+                assertThat(row.getDocumentId()).isEqualTo(hangzhou.getId());
+                assertThat(row.getChunkId()).isPositive();
+                assertThat(row.getCity()).isEqualTo("杭州");
+            });
+            List<KnowledgeRetrievalMetadata> domains = rows.stream()
+                    .map(KnowledgeRetrievalRow::toDomain)
+                    .toList();
+            assertThat(domains).extracting(KnowledgeRetrievalMetadata::documentId)
+                    .containsOnly(hangzhou.getId());
+            assertThat(domains).extracting(KnowledgeRetrievalMetadata::chunkId)
+                    .allSatisfy(id -> assertThat(id).isInstanceOf(Long.class).isPositive());
+            assertThat(domains).extracting(KnowledgeRetrievalMetadata::chunkIndex)
+                    .containsExactly(0, 1);
+            assertThat(domains).extracting(KnowledgeRetrievalMetadata::content)
+                    .containsExactly("杭州第一片", "杭州第二片");
+            assertThat(domains).extracting(KnowledgeRetrievalMetadata::embeddingId)
+                    .containsExactly("knowledge:" + hangzhou.getId() + ":chunk:0",
+                            "knowledge:" + hangzhou.getId() + ":chunk:1");
+            assertThat(domains).allSatisfy(metadata -> {
+                assertThat(metadata.title()).isEqualTo("杭州知识文档");
+                assertThat(metadata.city()).isEqualTo("杭州");
+                assertThat(metadata.publisher()).isEqualTo("杭州市文旅局");
+                assertThat(metadata.sourceUrl()).isEqualTo(URI.create("https://example.test/knowledge"));
+                assertThat(metadata.publishedAt()).isEqualTo(LocalDate.of(2026, 9, 1));
+                assertThat(metadata.documentType()).isEqualTo(KnowledgeDocumentType.OFFICIAL_NOTICE);
+            });
+            assertThat(session.getMapper(KnowledgeRetrievalMapper.class).findActiveByCity("不存在城市"))
+                    .isEmpty();
         }
     }
 

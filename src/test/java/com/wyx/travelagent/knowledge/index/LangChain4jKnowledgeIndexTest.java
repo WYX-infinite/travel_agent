@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,6 +36,31 @@ class LangChain4jKnowledgeIndexTest {
 
         assertThat(index.search(new KnowledgeQuery("任意查询"), 5)).isEmpty();
         assertThat(temporaryDirectory.resolve("knowledge-index.json")).doesNotExist();
+    }
+
+    @Test
+    void allowedChunkFilterRunsBeforeTopKAndCanRecallGlobalRankNine() {
+        LangChain4jKnowledgeIndex index = index(new DeterministicFakeEmbeddingModel(MODEL, 4));
+        List<KnowledgeChunk> chunks = java.util.stream.LongStream.rangeClosed(1, 10)
+                .mapToObj(id -> chunk(id, 100 + id, 0, "候选正文-" + id))
+                .toList();
+        index.addAll(chunks);
+        KnowledgeQuery query = new KnowledgeQuery("杭州周末路线");
+        KnowledgeMatch ninth = index.search(query, 10).get(8);
+
+        assertThat(index.search(query, Set.of(ninth.chunkId()), 8))
+                .extracting(KnowledgeMatch::chunkId)
+                .containsExactly(ninth.chunkId());
+    }
+
+    @Test
+    void emptyAllowedChunkSetReturnsWithoutCallingEmbeddingModel() {
+        DeterministicFakeEmbeddingModel model = new DeterministicFakeEmbeddingModel(MODEL, 4);
+        LangChain4jKnowledgeIndex index = index(model);
+        index.addAll(List.of(chunk(1, 101, 0, "杭州正文")));
+        model.failWhenTextContains("不应生成查询向量");
+
+        assertThat(index.search(new KnowledgeQuery("不应生成查询向量"), Set.of(), 8)).isEmpty();
     }
 
     @Test

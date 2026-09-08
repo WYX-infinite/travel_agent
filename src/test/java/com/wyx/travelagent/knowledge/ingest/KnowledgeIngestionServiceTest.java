@@ -467,6 +467,12 @@ class KnowledgeIngestionServiceTest {
         }
 
         @Override
+        public List<KnowledgeMatch> search(
+                KnowledgeQuery query, java.util.Set<Long> allowedChunkIds, int maxResults) {
+            return List.of();
+        }
+
+        @Override
         public void rebuild(List<KnowledgeChunk> activeChunks) {
             rebuiltWith = List.copyOf(activeChunks);
         }

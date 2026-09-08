@@ -54,3 +54,8 @@ travel:
   knowledge:
     index-file: ${TRAVEL_KNOWLEDGE_INDEX_FILE:data/index/knowledge-index.json}
     rebuild-on-startup: ${TRAVEL_KNOWLEDGE_REBUILD_ON_STARTUP:true}
+    retrieval:
+      # 0.0 是尚未校准时的显式安全默认值；上线前应以离线评测结果覆盖。
+      min-score: ${TRAVEL_KNOWLEDGE_MIN_SCORE:0.0}
+      candidate-limit: 8
+      context-limit: 5
