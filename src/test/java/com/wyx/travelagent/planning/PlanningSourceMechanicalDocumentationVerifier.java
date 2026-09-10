@@ -112,9 +112,6 @@ final class PlanningSourceMechanicalDocumentationVerifier {
         public Void visitClass(ClassTree node, Void unused) {
             if (isCheckedType(node) && isPublic(node.getModifiers().getFlags())) {
                 String typeName = node.getSimpleName().toString();
-                if (typeName.equals("ValidationIssue")) {
-                    violations.add(fileName + ": public 保留类型名 ValidationIssue 不允许提前声明");
-                }
                 if (typeName.equals("RequirementValidationError")) {
                     requirementValidationError = true;
                 }

@@ -47,6 +47,17 @@ amap:
   api-key: ${AMAP_WEB_API_KEY:${travel.local-secrets.amap-web-api-key:}}
 
 travel:
+  ai:
+    context:
+      model-context-window-tokens: ${TRAVEL_MODEL_CONTEXT_WINDOW_TOKENS:32768}
+      max-estimated-input-tokens: ${TRAVEL_MAX_INPUT_TOKENS:16000}
+      reserved-output-tokens: ${TRAVEL_MODEL_MAX_OUTPUT_TOKENS:4000}
+      safety-margin-tokens: ${TRAVEL_CONTEXT_SAFETY_MARGIN_TOKENS:2000}
+      max-knowledge-tokens: ${TRAVEL_MAX_KNOWLEDGE_TOKENS:4000}
+      max-tool-fact-tokens: ${TRAVEL_MAX_TOOL_FACT_TOKENS:6000}
+      max-memory-tokens: ${TRAVEL_MAX_MEMORY_TOKENS:500}
+      max-poi-count: ${TRAVEL_MAX_PROMPT_POI_COUNT:20}
+      max-knowledge-chunks: 5
   jwt:
     secret: ${TRAVEL_JWT_SECRET:${travel.local-secrets.jwt-secret:}}
     issuer: ${TRAVEL_JWT_ISSUER:travel-planning-agent}

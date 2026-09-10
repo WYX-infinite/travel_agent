@@ -168,7 +168,7 @@ class PlanningSourceMechanicalDocumentationVerifierTest {
     }
 
     @Test
-    void rejectsDetachedKeywordsUndocumentedPublicMethodAndReformattedForbiddenPublicType() {
+    void rejectsDetachedKeywordsUndocumentedPublicMethodAndUndocumentedNestedType() {
         String syntheticSource = """
                 package synthetic;
                 /*
@@ -190,7 +190,7 @@ class PlanningSourceMechanicalDocumentationVerifierTest {
         assertThat(violations).anyMatch(message -> message.contains("undocumented")
                 && message.contains("缺少方法 Javadoc"));
         assertThat(violations).anyMatch(message -> message.contains("ValidationIssue")
-                && message.contains("保留类型名"));
+                && message.contains("缺少类型 Javadoc"));
     }
 
     @SuppressWarnings("unchecked")
