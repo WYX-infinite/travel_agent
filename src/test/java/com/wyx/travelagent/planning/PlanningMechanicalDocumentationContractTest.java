@@ -38,7 +38,7 @@ class PlanningMechanicalDocumentationContractTest {
     }
 
     @Test
-    void publicPlanningApisSatisfyTheMechanicallyVerifiableDocumentationContract() throws IOException {
+    void publicPlanningAndTraceApisSatisfyTheMechanicallyVerifiableDocumentationContract() throws IOException {
         List<String> violations = new ArrayList<>();
         for (Path source : discoverProductionJavaSources(
                 Path.of("src/main/java/com/wyx/travelagent/planning"))) {
@@ -46,6 +46,10 @@ class PlanningMechanicalDocumentationContractTest {
         }
         for (Path source : discoverTaskElevenMapperSources(
                 Path.of("src/main/java/com/wyx/travelagent/mapper"))) {
+            violations.addAll(PlanningSourceMechanicalDocumentationVerifier.verifyPath(source));
+        }
+        for (Path source : discoverProductionJavaSources(
+                Path.of("src/main/java/com/wyx/travelagent/trace"))) {
             violations.addAll(PlanningSourceMechanicalDocumentationVerifier.verifyPath(source));
         }
 

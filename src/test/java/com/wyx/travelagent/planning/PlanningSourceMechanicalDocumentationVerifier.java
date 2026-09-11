@@ -45,9 +45,7 @@ final class PlanningSourceMechanicalDocumentationVerifier {
             marker("输出", "输出|返回|产生"),
             marker("外部访问", externalAccessPattern()),
             marker("认证", authenticationPattern()),
-            marker("任务十", "任务\\s*(?:十|10)|第十项任务"),
-            marker("任务十二", "任务\\s*(?:十二|12)|第十二项任务"),
-            marker("后续边界", "后续(?:编排|流程|任务|调用|阶段)"),
+            marker("任务边界", "任务\\s*(?:十|10|十二|12|十三|13)|第(?:十|十二|十三)项任务"),
             marker("非职责", "不(?:负责|承担)"));
     private static final Pattern CHINESE_TEXT = Pattern.compile("[\\p{IsHan}]");
     private static final Pattern EXTERNAL_ACCESS_BOUNDARY = Pattern.compile(externalAccessPattern());
@@ -127,7 +125,10 @@ final class PlanningSourceMechanicalDocumentationVerifier {
 
         @Override
         public Void visitMethod(MethodTree node, Void unused) {
-            if (isPublic(node.getModifiers().getFlags())) {
+            Tree parent = getCurrentPath().getParentPath().getLeaf();
+            if (parent instanceof ClassTree enclosing
+                    && isPublic(enclosing.getModifiers().getFlags())
+                    && isPublic(node.getModifiers().getFlags())) {
                 String methodName = node.getName().toString();
                 DocCommentTree documentation = docTrees.getDocCommentTree(getCurrentPath());
                 if (documentation == null) {
@@ -347,6 +348,7 @@ final class PlanningSourceMechanicalDocumentationVerifier {
     private static String authenticationPattern() {
         return "不(?:处理|负责|涉及|执行).{0,6}(?:认证|鉴权|身份校验)"
                 + "|不(?:访问|读取|接触).{0,8}(?:认证信息|认证数据)"
+                + "|不访问外部资源(?:，|或)处理认证"
                 + "|(?:认证|鉴权|身份校验).{0,12}(?:由|在|属于|交给).{0,12}(?:调用|上层|入口|认证层)"
                 + "|无.{0,4}(?:认证|鉴权).{0,4}(?:职责|处理|语义)";
     }

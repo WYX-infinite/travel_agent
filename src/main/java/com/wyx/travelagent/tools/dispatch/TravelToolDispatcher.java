@@ -81,7 +81,8 @@ public final class TravelToolDispatcher {
             case WEATHER_FORECAST -> cached("weather", weatherKey(arguments), action.type(), calls, "weather", () -> {
                 LocalDate date = date(arguments, "date");
                 return weatherProvider.forecast(point(arguments, "location"), date, date);
-            });
+            }).withWeatherCoordinates(point(arguments, "location").coordinateSystem(),
+                    weatherProvider.requestCoordinateSystem(point(arguments, "location")));
         };
     }
 

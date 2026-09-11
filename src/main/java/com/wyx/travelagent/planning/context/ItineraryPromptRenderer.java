@@ -13,6 +13,7 @@ import java.util.Objects;
  */
 public final class ItineraryPromptRenderer {
     private static final String TEMPLATE_PATH = "prompts/itinerary-generate.txt";
+    private static final String REPAIR_TEMPLATE_PATH = "prompts/itinerary-repair.txt";
     private static final String CONTEXT_PLACEHOLDER = "{{PROMPT_CONTEXT}}";
 
     private final String template;
@@ -25,7 +26,22 @@ public final class ItineraryPromptRenderer {
      * 构造只读取类路径文件，不访问模型、数据库、缓存或网络，不处理认证。
      */
     public ItineraryPromptRenderer() {
-        this.template = loadTemplate();
+        this(TEMPLATE_PATH);
+    }
+
+    private ItineraryPromptRenderer(String templatePath) {
+        this.template = loadTemplate(templatePath);
+    }
+
+    /**
+     * 加载任务十三结构化修正模板。
+     *
+     * @return 只接受 PromptContext 渲染文本的修正渲染器
+     * @throws IllegalStateException 当模板缺失、不可读或占位符数量不为一
+     * 本方法只读取类路径固定模板，不访问模型、数据库、缓存或网络，也不处理认证。
+     */
+    public static ItineraryPromptRenderer repair() {
+        return new ItineraryPromptRenderer(REPAIR_TEMPLATE_PATH);
     }
 
     /**
@@ -41,9 +57,9 @@ public final class ItineraryPromptRenderer {
                 Objects.requireNonNull(renderedContext, "renderedContext"));
     }
 
-    private static String loadTemplate() {
+    private static String loadTemplate(String templatePath) {
         try {
-            String value = new ClassPathResource(TEMPLATE_PATH)
+            String value = new ClassPathResource(templatePath)
                     .getContentAsString(StandardCharsets.UTF_8);
             int first = value.indexOf(CONTEXT_PLACEHOLDER);
             if (first < 0 || first != value.lastIndexOf(CONTEXT_PLACEHOLDER)) {

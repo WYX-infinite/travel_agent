@@ -3,6 +3,7 @@ package com.wyx.travelagent.tools.weather;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.wyx.travelagent.tools.geo.Gcj02ToWgs84Converter;
 import com.wyx.travelagent.tools.model.GeoPoint;
+import com.wyx.travelagent.tools.model.CoordinateSystem;
 import com.wyx.travelagent.tools.model.ToolResult;
 import com.wyx.travelagent.tools.model.WeatherResult;
 import com.wyx.travelagent.tools.port.WeatherProvider;
@@ -80,6 +81,18 @@ public class OpenMeteoWeatherProvider implements WeatherProvider {
         } catch (RestClientException | IllegalArgumentException exception) {
             return failure("INVALID_PROVIDER_RESPONSE", "weather provider returned an invalid response");
         }
+    }
+
+    /**
+     * Open-Meteo HTTP 请求始终使用 WGS84；GCJ02 仅在适配器内部转换一次。
+     *
+     * @param original 非空原始坐标
+     * @return 固定 WGS84
+     */
+    @Override
+    public CoordinateSystem requestCoordinateSystem(GeoPoint original) {
+        Objects.requireNonNull(original, "original");
+        return CoordinateSystem.WGS84;
     }
 
     private ToolResult<WeatherResult> mapResponse(WeatherResponse response, LocalDate startDate, LocalDate endDate) {

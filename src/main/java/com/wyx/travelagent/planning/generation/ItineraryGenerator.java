@@ -20,4 +20,16 @@ public interface ItineraryGenerator {
      * 实现允许调用一次模型，不访问数据库、缓存或文件中的业务数据，不处理认证。
      */
     ItineraryPlan generate(PromptContext context);
+
+    /**
+     * 生成一次结构化行程并返回可审计的模型元数据。
+     *
+     * @param context 非空且预算报告通过的唯一模型上下文
+     * @return 不含 Prompt/原文的行程、实际 Token 状态和引用净化计数
+     * 默认实现保持旧适配器兼容：调用 {@link #generate(PromptContext)}，并把供应商用量标记为未知。
+     * 实现允许调用一次模型，不访问数据库、缓存或其他业务来源，不处理认证。
+     */
+    default ItineraryGenerationResult generateResult(PromptContext context) {
+        return new ItineraryGenerationResult(generate(context), ModelTokenUsage.unknown(), 0);
+    }
 }

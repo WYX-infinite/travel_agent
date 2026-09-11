@@ -14,7 +14,11 @@ import com.wyx.travelagent.planning.model.ItineraryDay;
 import com.wyx.travelagent.planning.model.ItineraryItem;
 import com.wyx.travelagent.planning.model.ItineraryPlan;
 import com.wyx.travelagent.tools.model.TravelMode;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.output.TokenUsage;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -95,6 +99,48 @@ public final class LangChain4jItineraryGenerator implements ItineraryGenerator {
         }
     }
 
+    /**
+     * 使用 LangChain4j 结构化响应 API 生成行程，并读取供应商返回的实际 Token 元数据。
+     * 越界 POI 仍被拒绝；越界 DOCUMENT 引用会安全降级为 MISSING 并计数，供任务十三写入 Trace。
+     *
+     * @param context 非空、预算内且带最终 POI/知识白名单的上下文
+     * @return 不含模型原文的结构化结果
+     * @throws ItineraryGenerationException 当模型失败、响应不可解析或 POI 越界
+     * 本方法只调用一次模型，不访问数据库、缓存或其他网络来源，也不处理认证。
+     */
+    @Override
+    public ItineraryGenerationResult generateResult(PromptContext context) {
+        Objects.requireNonNull(context, "context");
+        if (!context.budgetReport().withinBudget()) {
+            throw new IllegalArgumentException("CONTEXT_BUDGET_EXCEEDED");
+        }
+        ChatResponse response;
+        try {
+            String prompt = promptRenderer.render(context.render());
+            response = chatModel.chat(ChatRequest.builder()
+                    .messages(UserMessage.from(prompt))
+                    .build());
+        } catch (RuntimeException exception) {
+            throw new ItineraryGenerationException(ItineraryGenerationException.GENERATION_FAILED);
+        }
+        if (response == null || response.aiMessage() == null
+                || response.aiMessage().text() == null || response.aiMessage().text().isBlank()) {
+            throw new ItineraryGenerationException(ItineraryGenerationException.GENERATION_FAILED);
+        }
+        try {
+            JsonNode root = objectMapper.readTree(response.aiMessage().text());
+            if (root == null || !root.isObject()) throw new IllegalArgumentException("object root required");
+            ResponseDto dto = objectMapper.treeToValue(root, ResponseDto.class);
+            ItineraryPlan parsed = toPlan(dto);
+            verifyPoiWhiteList(parsed, context);
+            SanitizedPlan sanitized = sanitizeInvalidReferences(parsed, context);
+            return new ItineraryGenerationResult(sanitized.plan(), tokenUsage(response.tokenUsage()),
+                    sanitized.invalidReferenceCount());
+        } catch (Exception exception) {
+            throw new ItineraryGenerationException(ItineraryGenerationException.INVALID_RESPONSE);
+        }
+    }
+
     private ItineraryPlan toPlan(ResponseDto dto) {
         Objects.requireNonNull(dto, "response");
         Objects.requireNonNull(dto.days(), "days");
@@ -120,17 +166,54 @@ public final class LangChain4jItineraryGenerator implements ItineraryGenerator {
     }
 
     private void verifyWhiteLists(ItineraryPlan plan, PromptContext context) {
+        verifyPoiWhiteList(plan, context);
         for (ItineraryDay day : plan.days()) {
             for (ItineraryItem item : day.items()) {
-                if (!context.allowedPoiIds().contains(item.poiId())) {
-                    throw new IllegalArgumentException("poi outside context");
-                }
                 if (item.cost().evidenceType() == CostEvidenceType.DOCUMENT
                         && !context.allowedKnowledgeChunkIds().contains(item.cost().knowledgeChunkId())) {
                     throw new IllegalArgumentException("knowledge outside context");
                 }
             }
         }
+    }
+
+    private void verifyPoiWhiteList(ItineraryPlan plan, PromptContext context) {
+        for (ItineraryDay day : plan.days()) {
+            for (ItineraryItem item : day.items()) {
+                if (!context.allowedPoiIds().contains(item.poiId())) {
+                    throw new IllegalArgumentException("poi outside context");
+                }
+            }
+        }
+    }
+
+    private SanitizedPlan sanitizeInvalidReferences(ItineraryPlan plan, PromptContext context) {
+        int invalidCount = 0;
+        List<ItineraryDay> days = new java.util.ArrayList<>();
+        for (ItineraryDay day : plan.days()) {
+            List<ItineraryItem> items = new java.util.ArrayList<>();
+            for (ItineraryItem item : day.items()) {
+                if (item.cost().evidenceType() == CostEvidenceType.DOCUMENT
+                        && !context.allowedKnowledgeChunkIds().contains(item.cost().knowledgeChunkId())) {
+                    invalidCount++;
+                    items.add(new ItineraryItem(item.startTime(), item.endTime(), item.poiId(), item.name(),
+                            item.description(), new CostEstimate(CostStatus.MISSING, null, null, null, null),
+                            item.travelModeFromPrevious()));
+                } else {
+                    items.add(item);
+                }
+            }
+            days.add(new ItineraryDay(day.date(), items));
+        }
+        return new SanitizedPlan(new ItineraryPlan(plan.destinationCity(), plan.startDate(), plan.endDate(),
+                days, plan.estimatedTotalCost()), invalidCount);
+    }
+
+    private static ModelTokenUsage tokenUsage(TokenUsage usage) {
+        if (usage == null || usage.inputTokenCount() == null || usage.outputTokenCount() == null) {
+            return ModelTokenUsage.unknown();
+        }
+        return new ModelTokenUsage(usage.inputTokenCount(), usage.outputTokenCount());
     }
 
     private static ObjectMapper strictObjectMapper() {
@@ -170,5 +253,8 @@ public final class LangChain4jItineraryGenerator implements ItineraryGenerator {
             BigDecimal maximum,
             CostEvidenceType evidenceType,
             Long knowledgeChunkId) {
+    }
+
+    private record SanitizedPlan(ItineraryPlan plan, int invalidReferenceCount) {
     }
 }

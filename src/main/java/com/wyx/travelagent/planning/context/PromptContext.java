@@ -13,6 +13,7 @@ import java.util.Set;
  *
  * @param systemSection 非空系统约束与 JSON Schema
  * @param hardConstraintSection 非空显式硬约束 JSON
+ * @param previousPlanEntries 零或一个上一版类型化行程 JSON；不包含旧 Prompt 或模型原文
  * @param validationIssueEntries 不可变修正问题 JSON 对象
  * @param toolFactEntries 不可变 POI、路线、天气和费用事实 JSON 对象
  * @param memoryEntries 不可变记忆派生偏好 JSON 对象
@@ -25,6 +26,7 @@ import java.util.Set;
 public record PromptContext(
         String systemSection,
         String hardConstraintSection,
+        List<String> previousPlanEntries,
         List<String> validationIssueEntries,
         List<String> toolFactEntries,
         List<String> memoryEntries,
@@ -45,6 +47,7 @@ public record PromptContext(
     public PromptContext {
         systemSection = requireText(systemSection, "systemSection");
         hardConstraintSection = requireText(hardConstraintSection, "hardConstraintSection");
+        previousPlanEntries = immutable(previousPlanEntries, "previousPlanEntries");
         validationIssueEntries = immutable(validationIssueEntries, "validationIssueEntries");
         toolFactEntries = immutable(toolFactEntries, "toolFactEntries");
         memoryEntries = immutable(memoryEntries, "memoryEntries");
@@ -58,13 +61,33 @@ public record PromptContext(
     }
 
     /**
+     * 创建不带上一版行程的任务十二兼容上下文。
+     * 参数语义与规范构造器一致；本构造器只补充空 PREVIOUS_PLAN 分区，不访问外部资源，也不处理认证。
+     */
+    public PromptContext(
+            String systemSection,
+            String hardConstraintSection,
+            List<String> validationIssueEntries,
+            List<String> toolFactEntries,
+            List<String> memoryEntries,
+            List<String> knowledgeEntries,
+            List<String> optionalEntries,
+            ContextBudgetReport budgetReport,
+            Set<String> allowedPoiIds,
+            Set<Long> allowedKnowledgeChunkIds) {
+        this(systemSection, hardConstraintSection, List.of(), validationIssueEntries,
+                toolFactEntries, memoryEntries, knowledgeEntries, optionalEntries,
+                budgetReport, allowedPoiIds, allowedKnowledgeChunkIds);
+    }
+
+    /**
      * 渲染生成器唯一允许发送的完整 Prompt。
      *
      * @return 按固定分区顺序组成的文本；每个列表元素保持完整，不从 JSON 中间截断
      * 无输入且不抛业务异常；本方法只拼接已净化内存字符串，不访问模型、数据库、缓存、文件或网络，不处理认证。
      */
     public String render() {
-        return renderSections(systemSection, hardConstraintSection, validationIssueEntries,
+        return renderSections(systemSection, hardConstraintSection, previousPlanEntries, validationIssueEntries,
                 toolFactEntries, memoryEntries, knowledgeEntries, optionalEntries);
     }
 
@@ -76,9 +99,23 @@ public record PromptContext(
             List<String> memoryEntries,
             List<String> knowledgeEntries,
             List<String> optionalEntries) {
+        return renderSections(systemSection, hardConstraintSection, List.of(), validationIssueEntries,
+                toolFactEntries, memoryEntries, knowledgeEntries, optionalEntries);
+    }
+
+    static String renderSections(
+            String systemSection,
+            String hardConstraintSection,
+            List<String> previousPlanEntries,
+            List<String> validationIssueEntries,
+            List<String> toolFactEntries,
+            List<String> memoryEntries,
+            List<String> knowledgeEntries,
+            List<String> optionalEntries) {
         StringBuilder prompt = new StringBuilder();
         appendSingle(prompt, "SYSTEM_AND_SCHEMA", systemSection);
         appendSingle(prompt, "HARD_CONSTRAINTS", hardConstraintSection);
+        appendList(prompt, "PREVIOUS_PLAN", previousPlanEntries);
         appendList(prompt, "VALIDATION_ISSUES", validationIssueEntries);
         appendList(prompt, "TOOL_FACTS", toolFactEntries);
         appendList(prompt, "APPLIED_MEMORY", memoryEntries);

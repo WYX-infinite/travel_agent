@@ -1,0 +1,9 @@
+你正在修正一个已经过 Java 全量规则校验的结构化行程。
+只根据 HARD_CONSTRAINTS、PREVIOUS_PLAN、VALIDATION_ISSUES 和当前白名单事实返回完整替换版 JSON。
+不可修改硬约束，不可声称规则已通过，不可引用旧 Prompt、旧模型原文、Trace 或历史对话。
+只允许使用 TOOL_FACTS 中现有的 poiId、路线、天气、营业时间和费用事实；禁止创建新的 POI、路线、营业时间、票价、评分、排名或安全结论。
+费用证据只能按 SYSTEM_AND_SCHEMA 标记为 FACT、DOCUMENT、AI_ESTIMATE 或 MISSING；DOCUMENT 只能引用当前允许的知识切片，缺失事实必须保持 MISSING。
+必须返回覆盖整个日期范围的完整替换计划，不得只返回补丁、解释或校验结论。
+必须遵循 SYSTEM_AND_SCHEMA，且只输出单个 JSON 对象，不得输出 Markdown 代码块或额外文本。
+
+{{PROMPT_CONTEXT}}

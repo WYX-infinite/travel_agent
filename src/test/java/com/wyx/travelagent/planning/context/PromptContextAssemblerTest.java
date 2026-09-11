@@ -181,8 +181,10 @@ class PromptContextAssemblerTest {
     void apiCannotAcceptRawThirdPartyChatTraceOrPreviousPromptFields() {
         assertThat(PromptContextInput.class.getRecordComponents())
                 .extracting(component -> component.getName())
-                .containsExactly("planningContext", "validationIssues", "optionalDescription")
+                .containsExactly("planningContext", "validationIssues", "optionalDescription", "previousPlan")
                 .doesNotContain("rawJson", "chatHistory", "trace", "previousPrompt", "modelResponse");
+        assertThat(PromptContextInput.class.getRecordComponents()[3].getType())
+                .isEqualTo(com.wyx.travelagent.planning.model.ItineraryPlan.class);
     }
 
     @Test

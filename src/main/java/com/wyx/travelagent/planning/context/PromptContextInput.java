@@ -1,6 +1,7 @@
 package com.wyx.travelagent.planning.context;
 
 import com.wyx.travelagent.planning.model.TravelPlanningContext;
+import com.wyx.travelagent.planning.model.ItineraryPlan;
 import com.wyx.travelagent.planning.validation.ValidationIssue;
 
 import java.util.List;
@@ -14,11 +15,28 @@ import java.util.Objects;
  * @param planningContext 非空内部规划上下文
  * @param validationIssues 非空且可为空的结构化问题列表
  * @param optionalDescription 可缺失的可选解释文字；{@code null} 表示没有
+ * @param previousPlan 可缺失的上一版类型化行程；普通生成时为 {@code null}
  */
 public record PromptContextInput(
         TravelPlanningContext planningContext,
         List<ValidationIssue> validationIssues,
-        String optionalDescription) {
+        String optionalDescription,
+        ItineraryPlan previousPlan) {
+
+    /**
+     * 创建不带上一版方案的普通生成输入，保持任务十二调用兼容。
+     *
+     * @param planningContext 非空内部规划上下文
+     * @param validationIssues 非空结构化问题列表
+     * @param optionalDescription 可缺失的可选说明
+     * 本构造器只委托规范构造器，不访问任何外部资源，也不处理认证。
+     */
+    public PromptContextInput(
+            TravelPlanningContext planningContext,
+            List<ValidationIssue> validationIssues,
+            String optionalDescription) {
+        this(planningContext, validationIssues, optionalDescription, null);
+    }
 
     /**
      * 创建不可变组装输入。

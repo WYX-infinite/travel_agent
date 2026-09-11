@@ -8,6 +8,7 @@ import com.wyx.travelagent.planning.memory.AppliedPreferenceSnapshot;
 import com.wyx.travelagent.planning.memory.PreferenceSource;
 import com.wyx.travelagent.planning.model.CostFact;
 import com.wyx.travelagent.planning.model.ItineraryValidationFacts;
+import com.wyx.travelagent.planning.model.ItineraryPlan;
 import com.wyx.travelagent.planning.model.RouteFact;
 import com.wyx.travelagent.planning.model.TravelRequirement;
 import com.wyx.travelagent.planning.model.ValidationPoiFact;
@@ -65,7 +66,16 @@ public final class PromptContextAssembler {
         this(properties, estimator, new ItineraryPromptRenderer());
     }
 
-    PromptContextAssembler(
+    /**
+     * 创建使用显式固定模板渲染器的确定性组装器，确保估算与实际模型输入一致。
+     *
+     * @param properties 非空且已通过交叉校验的预算配置
+     * @param estimator 非空本地保守估算器
+     * @param promptRenderer 非空固定模板渲染器
+     * @throws NullPointerException 当任一依赖为空
+     * 构造只准备内存编码器，不访问模型、数据库、缓存或网络，也不处理认证。
+     */
+    public PromptContextAssembler(
             ContextBudgetProperties properties,
             ConservativeTokenEstimator estimator,
             ItineraryPromptRenderer promptRenderer) {
@@ -98,6 +108,8 @@ public final class PromptContextAssembler {
         List<String> validationEntries = new ValidationReport(input.validationIssues()).issues().stream()
                 .map(this::json)
                 .toList();
+        List<String> previousPlanEntries = input.previousPlan() == null
+                ? List.of() : List.of(json(input.previousPlan()));
         List<String> trimReasons = new ArrayList<>();
         List<String> trimmedMemoryFields = new ArrayList<>();
 
@@ -137,7 +149,7 @@ public final class PromptContextAssembler {
                 ? new ArrayList<>()
                 : new ArrayList<>(List.of(json(new OptionalDescriptionDto(input.optionalDescription()))));
 
-        int total = total(SYSTEM_AND_SCHEMA, hardConstraints, validationEntries, toolEntries,
+        int total = total(SYSTEM_AND_SCHEMA, hardConstraints, previousPlanEntries, validationEntries, toolEntries,
                 memoryEntries, knowledgeEntries, optionalEntries);
         while (total > properties.maxEstimatedInputTokens()) {
             if (!optionalEntries.isEmpty()) {
@@ -158,13 +170,14 @@ public final class PromptContextAssembler {
             } else {
                 throw new ContextBudgetExceededException();
             }
-            total = total(SYSTEM_AND_SCHEMA, hardConstraints, validationEntries, toolEntries,
+            total = total(SYSTEM_AND_SCHEMA, hardConstraints, previousPlanEntries, validationEntries, toolEntries,
                     memoryEntries, knowledgeEntries, optionalEntries);
         }
 
         int systemTokens = estimateSingleSection("SYSTEM_AND_SCHEMA", SYSTEM_AND_SCHEMA);
         int hardTokens = estimateSingleSection("HARD_CONSTRAINTS", hardConstraints);
-        int issueTokens = estimateListSection("VALIDATION_ISSUES", validationEntries);
+        int issueTokens = estimateListSection("PREVIOUS_PLAN", previousPlanEntries)
+                + estimateListSection("VALIDATION_ISSUES", validationEntries);
         int toolTokens = estimateListSection("TOOL_FACTS", toolEntries);
         int memoryTokens = estimateListSection("APPLIED_MEMORY", memoryEntries);
         int knowledgeTokens = estimateListSection("KNOWLEDGE_REFERENCES", knowledgeEntries);
@@ -186,7 +199,7 @@ public final class PromptContextAssembler {
         Set<Long> allowedChunkIds = retainedKnowledge.stream()
                 .map(KnowledgeReference::chunkId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        return new PromptContext(SYSTEM_AND_SCHEMA, hardConstraints, validationEntries, toolEntries,
+        return new PromptContext(SYSTEM_AND_SCHEMA, hardConstraints, previousPlanEntries, validationEntries, toolEntries,
                 memoryEntries, knowledgeEntries, optionalEntries, report,
                 Collections.unmodifiableSet(allowedPoiIds), Collections.unmodifiableSet(allowedChunkIds));
     }
@@ -313,10 +326,10 @@ public final class PromptContextAssembler {
                 reference.sourceUrl().toString(), reference.content(), reference.score()))).toList();
     }
 
-    private int total(String system, String hard, List<String> issues, List<String> tools,
+    private int total(String system, String hard, List<String> previousPlan, List<String> issues, List<String> tools,
                       List<String> memory, List<String> knowledge, List<String> optional) {
         String renderedContext = PromptContext.renderSections(
-                system, hard, issues, tools, memory, knowledge, optional);
+                system, hard, previousPlan, issues, tools, memory, knowledge, optional);
         return estimator.estimate(promptRenderer.render(renderedContext));
     }
 
