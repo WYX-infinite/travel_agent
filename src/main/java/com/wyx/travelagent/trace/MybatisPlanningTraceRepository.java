@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Repository;
 
 import java.util.Objects;
+import java.util.List;
 
 /**
  * 业务问题：把字段白名单 Trace 详情编码为 JSON 并写入既有 planning_trace 表。
@@ -44,6 +45,32 @@ public class MybatisPlanningTraceRepository implements PlanningTraceRepository {
         } catch (JsonProcessingException | RuntimeException exception) {
             throw failure();
         }
+    }
+
+    /**
+     * 读取游标后的脱敏事件并严格解析未知枚举或损坏 JSON。
+     * @param taskId 正任务编号
+     * @param afterEventId 非负排他游标
+     * @param limit 一至二百的批量上限
+     * @return 主键升序不可变事件
+     * 本方法只查询数据库，不访问模型、缓存、文件或网络；认证由上层入口负责，所有权由 SSE 服务先行检查。
+     */
+    @Override
+    public List<PersistedPlanningTrace> findAfter(long taskId, long afterEventId, int limit) {
+        if (taskId <= 0 || afterEventId < 0 || limit < 1 || limit > 200) throw failure();
+        try { return mapper.findAfter(taskId, afterEventId, limit).stream().map(this::map).toList(); }
+        catch (RuntimeException exception) { throw failure(); }
+    }
+
+    private PersistedPlanningTrace map(PlanningTraceRow row) {
+        PlanningTraceDetails details;
+        try { details = objectMapper.readValue(row.getInputSummary(), PlanningTraceDetails.class); }
+        catch (JsonProcessingException exception) { throw failure(); }
+        PlanningTraceEvent event = new PlanningTraceEvent(row.getTaskId(), row.getPlanVersionId(),
+                PlanningStep.valueOf(row.getStep()), TraceStatus.valueOf(row.getStatus()),
+                row.getDurationMs(), details, row.getErrorCode(), row.getErrorMessage(),
+                row.getCreatedAt().toInstant(java.time.ZoneOffset.UTC));
+        return new PersistedPlanningTrace(row.getId(), event);
     }
 
     private static IllegalStateException failure() {

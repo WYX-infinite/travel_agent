@@ -6,6 +6,10 @@ import com.wyx.travelagent.planning.model.TravelRequirement;
 import com.wyx.travelagent.planning.validation.ValidationReport;
 
 import java.util.Objects;
+import java.util.List;
+import java.util.Optional;
+import java.time.Instant;
+import java.time.LocalDate;
 
 /**
  * 业务问题：持久化行程主记录和每个可解析版本，并原子推进当前版本与状态。
@@ -39,6 +43,36 @@ public interface TravelPlanRepository {
      * @param status 非空最终状态
      */
     void updateStatus(long planId, TravelPlanStatus status);
+
+    /** @param userId 正可信用户编号 @return 按创建时间倒序的用户行程；生产实现只查数据库并由上层负责认证。 */
+    default List<PlanRecord> findAllByUserId(int userId) { return List.of(); }
+
+    /** @param planId 正行程编号 @param userId 正可信用户编号 @return 用户拥有时的主记录，否则为空；跨用户不得区分。 */
+    default Optional<PlanRecord> findByIdAndUserId(long planId, int userId) { return Optional.empty(); }
+
+    /** @param planId 正行程编号 @param userId 正可信用户编号 @return 版本号升序的类型化版本；生产实现只查数据库。 */
+    default List<PlanVersion> findVersionsByPlanIdAndUserId(long planId, int userId) { return List.of(); }
+
+    /**
+     * 业务问题：公开 travel_plan 主表的用户隔离事实，供任务十四查询 DTO 使用。
+     * 输入来自数据库，输出为不可变主记录；不访问外部资源或处理认证，也不包含 JSON 载荷。
+     * @param id 正行程编号 @param userId 正用户编号 @param destinationCity 非空城市
+     * @param startDate 非空首日 @param endDate 非空末日 @param currentVersion 非负当前版本
+     * @param status 非空稳定状态 @param createdAt 非空创建时间 @param updatedAt 非空更新时间
+     */
+    record PlanRecord(long id, int userId, String destinationCity, LocalDate startDate,
+                      LocalDate endDate, int currentVersion, TravelPlanStatus status,
+                      Instant createdAt, Instant updatedAt) { }
+
+    /**
+     * 业务问题：公开已解析的行程版本，禁止 Controller 接触 JSON 行或模型原文。
+     * 输入来自严格仓储映射，输出为不可变版本；不访问外部资源或处理认证。
+     * @param id 正版本主键 @param planId 正行程编号 @param versionNumber 正版本号
+     * @param plan 非空类型化行程 @param validationReport 非空全量校验报告
+     * @param metrics 非空客观指标 @param createdAt 非空创建时间
+     */
+    record PlanVersion(long id, long planId, int versionNumber, ItineraryPlan plan,
+                       ValidationReport validationReport, PlanMetrics metrics, Instant createdAt) { }
 
     /**
      * @param versionNumber 从一开始且连续递增的版本号

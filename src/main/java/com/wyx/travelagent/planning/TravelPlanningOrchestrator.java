@@ -21,6 +21,7 @@ import com.wyx.travelagent.planning.persistence.TravelPlanRepository;
 import com.wyx.travelagent.planning.persistence.TravelPlanStatus;
 import com.wyx.travelagent.planning.preparation.PlanningPreparationException;
 import com.wyx.travelagent.planning.preparation.PlanningPreparationGateway;
+import com.wyx.travelagent.planning.preparation.PlanningPreparationObserver;
 import com.wyx.travelagent.planning.preparation.PlanningPreparationResult;
 import com.wyx.travelagent.planning.repair.ItineraryRepairer;
 import com.wyx.travelagent.planning.repair.RepairExecution;
@@ -132,13 +133,32 @@ public final class TravelPlanningOrchestrator {
      * 本方法按需访问偏好仓储、知识/工具、模型、行程数据库和 Trace 数据库；不访问真实配置文件，认证由上层入口负责。
      */
     public PlanningOutcome plan(TravelPlanningCommand command) {
+        return plan(command, PlanningProgressListener.none());
+    }
+
+    /**
+     * 执行一次有界同步规划，并在真实阶段开始时通知任务十四。
+     * @param command 非空可信命令；可携带上层已冻结的偏好解析结果
+     * @param progressListener 非空阶段监听器
+     * @return 非空最终结果；已保存的中间版本不会回滚
+     * 本方法按需访问偏好、知识、工具、模型、行程与 Trace 数据库，不访问文件或其他外部资源；认证由上层入口负责，监听器不改变业务结果。
+     */
+    public PlanningOutcome plan(TravelPlanningCommand command, PlanningProgressListener progressListener) {
         Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(progressListener, "progressListener");
+        progressListener.onStep(PlanningStep.REQUIREMENT);
         long stepStarted = nanoTime.getAsLong();
         PreferenceMergeResult merged;
         TravelRequirement requirement;
         try {
-            merged = preferenceMemoryService.merge(command.userId(), command.requirementInput());
-            requirement = requirementValidator.validate(merged.mergedInput());
+            if (command.resolvedRequirement() == null) {
+                merged = preferenceMemoryService.merge(command.userId(), command.requirementInput());
+                requirement = requirementValidator.validate(merged.mergedInput());
+            } else {
+                requirement = command.resolvedRequirement().requirement();
+                merged = new PreferenceMergeResult(command.requirementInput(),
+                        command.resolvedRequirement().appliedPreferenceSnapshot());
+            }
             traceService.record(command.taskId(), null, PlanningStep.REQUIREMENT,
                     TraceStatus.SUCCEEDED, elapsedMillis(stepStarted), PlanningTraceDetails.empty());
         } catch (RuntimeException exception) {
@@ -155,11 +175,18 @@ public final class TravelPlanningOrchestrator {
         stepStarted = nanoTime.getAsLong();
         try {
             preparation = preparationGateway.prepare(requirement, command.knowledgeQuery(),
-                    command.toolPolicy(), command.toolPlan());
-            traceService.record(command.taskId(), null, PlanningStep.PREPARATION,
-                    preparation.toolSummary().weatherAvailable()
-                            ? TraceStatus.SUCCEEDED : TraceStatus.DEGRADED,
-                    elapsedMillis(stepStarted), PlanningTraceDetails.preparation(preparation.toolSummary()));
+                    command.toolPolicy(), command.toolPlan(), new PlanningPreparationObserver() {
+                        @Override public void started(PlanningStep step) {
+                            progressListener.onStep(step);
+                        }
+                        @Override public void completed(PlanningStep step, TraceStatus status,
+                                                        long durationMs, PlanningTraceDetails details) {
+                            traceService.record(command.taskId(), null, step, status, durationMs, details);
+                        }
+                        @Override public void failed(PlanningStep step, long durationMs, String errorCode) {
+                            traceService.failed(command.taskId(), null, step, durationMs, errorCode);
+                        }
+                    });
         } catch (PlanningPreparationException exception) {
             traceService.failed(command.taskId(), null, PlanningStep.PREPARATION,
                     elapsedMillis(stepStarted), exception.code());
@@ -171,6 +198,7 @@ public final class TravelPlanningOrchestrator {
         ItineraryGenerationResult generated;
         int structureRetries = 0;
         long modelDurationMs;
+        progressListener.onStep(PlanningStep.GENERATION);
         stepStarted = nanoTime.getAsLong();
         try {
             promptContext = contextAssembler.assemble(new PromptContextInput(
@@ -211,6 +239,7 @@ public final class TravelPlanningOrchestrator {
 
         for (int repairAttempt = 0; repairAttempt <= MAX_REPAIR_ATTEMPTS; repairAttempt++) {
             version++;
+            progressListener.onStep(PlanningStep.VALIDATION);
             stepStarted = nanoTime.getAsLong();
             currentReport = itineraryValidator.validate(planningContext, currentPlan);
             currentMetrics = metricsCalculator.calculate(currentPlan, currentReport,
@@ -267,6 +296,7 @@ public final class TravelPlanningOrchestrator {
                     currentReport.errors(), allowedPlaces(promptContext, planningContext),
                     allowedReferences(promptContext, planningContext));
             try {
+                progressListener.onStep(PlanningStep.REPAIR);
                 stepStarted = nanoTime.getAsLong();
                 RepairExecution repairExecution = repairer.repair(repairRequest, planningContext);
                 modelDurationMs = elapsedMillis(stepStarted);

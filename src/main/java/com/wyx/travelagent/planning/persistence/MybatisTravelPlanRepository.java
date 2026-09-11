@@ -7,6 +7,8 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Objects;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * 业务问题：在既有 travel_plan/travel_plan_version 表中保存可解析版本，并保证插入版本与推进主记录原子提交。
@@ -103,6 +105,54 @@ public class MybatisTravelPlanRepository implements TravelPlanRepository {
         } catch (RuntimeException exception) {
             throw failure();
         }
+    }
+
+    /**
+     * @param userId 正可信用户编号
+     * @return 创建时间倒序的用户行程
+     * 本方法只访问数据库，不访问模型、缓存、文件或网络；认证由上层入口负责。
+     */
+    @Override public List<PlanRecord> findAllByUserId(int userId) {
+        try { return planMapper.findAllByUserId(userId).stream().map(this::planRecord).toList(); }
+        catch (RuntimeException exception) { throw failure(); }
+    }
+
+    /**
+     * @param planId 正行程编号
+     * @param userId 正可信用户编号
+     * @return 用户拥有时的主记录，否则为空
+     * 本方法只访问数据库，不访问模型、缓存、文件或网络；认证由上层入口负责。
+     */
+    @Override public Optional<PlanRecord> findByIdAndUserId(long planId, int userId) {
+        try { return Optional.ofNullable(planMapper.findOwned(planId, userId)).map(this::planRecord); }
+        catch (RuntimeException exception) { throw failure(); }
+    }
+
+    /**
+     * @param planId 正行程编号
+     * @param userId 正可信用户编号
+     * @return 类型化版本号升序列表
+     * 本方法只访问数据库，不访问模型、缓存、文件或网络；认证由上层入口负责。
+     */
+    @Override public List<PlanVersion> findVersionsByPlanIdAndUserId(long planId, int userId) {
+        try { return versionMapper.findOwnedVersions(planId, userId).stream().map(this::planVersion).toList(); }
+        catch (RuntimeException exception) { throw failure(); }
+    }
+
+    private PlanRecord planRecord(TravelPlanRow row) {
+        return new PlanRecord(row.getId(), row.getUserId(), row.getDestinationCity(), row.getStartDate(),
+                row.getEndDate(), row.getCurrentVersion(), TravelPlanStatus.valueOf(row.getStatus()),
+                row.getCreatedAt(), row.getUpdatedAt());
+    }
+
+    private PlanVersion planVersion(TravelPlanVersionRow row) {
+        try {
+            return new PlanVersion(row.getId(), row.getPlanId(), row.getVersionNumber(),
+                    objectMapper.readValue(row.getItineraryJson(), com.wyx.travelagent.planning.model.ItineraryPlan.class),
+                    objectMapper.readValue(row.getValidationJson(), com.wyx.travelagent.planning.validation.ValidationReport.class),
+                    objectMapper.readValue(row.getMetricsJson(), com.wyx.travelagent.planning.metrics.PlanMetrics.class),
+                    row.getCreatedAt());
+        } catch (JsonProcessingException exception) { throw failure(); }
     }
 
     private String json(Object value) {

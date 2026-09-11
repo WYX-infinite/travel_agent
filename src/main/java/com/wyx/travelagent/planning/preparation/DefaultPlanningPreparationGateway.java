@@ -17,6 +17,9 @@ import com.wyx.travelagent.tools.dispatch.TravelToolType;
 import com.wyx.travelagent.tools.model.PlaceCandidate;
 import com.wyx.travelagent.tools.model.TravelSegment;
 import com.wyx.travelagent.tools.model.WeatherResult;
+import com.wyx.travelagent.trace.PlanningStep;
+import com.wyx.travelagent.trace.PlanningTraceDetails;
+import com.wyx.travelagent.trace.TraceStatus;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -65,12 +68,46 @@ public final class DefaultPlanningPreparationGateway implements PlanningPreparat
             String knowledgeQuery,
             ToolExecutionPolicy policy,
             ToolPlan plan) {
+        return prepare(requirement, knowledgeQuery, policy, plan, PlanningPreparationObserver.none());
+    }
+
+    /**
+     * 执行并观察真实知识检索与工具阶段。
+     * @param requirement 非空已校验需求
+     * @param knowledgeQuery 非空知识查询
+     * @param policy 非空工具策略
+     * @param plan 非空白名单计划
+     * @param observer 非空观察器，只接收脱敏状态和摘要
+     * @return 非空可信事实与工具摘要
+     * 本方法访问知识索引、工具、缓存和网络，不调用行程模型；认证由上层负责，观察器不接收原始响应。
+     */
+    @Override
+    public PlanningPreparationResult prepare(TravelRequirement requirement, String knowledgeQuery,
+                                              ToolExecutionPolicy policy, ToolPlan plan,
+                                              PlanningPreparationObserver observer) {
         Objects.requireNonNull(requirement, "requirement");
-        KnowledgeRetrievalResult knowledge = retrieveKnowledge(knowledgeQuery, requirement.destinationCity());
+        Objects.requireNonNull(observer, "observer");
+        observer.started(PlanningStep.KNOWLEDGE_RETRIEVAL);
+        long knowledgeStarted = System.nanoTime();
+        KnowledgeRetrievalResult knowledge;
+        TraceStatus knowledgeStatus;
+        try {
+            knowledge = knowledgeService.retrieve(knowledgeQuery, requirement.destinationCity());
+            knowledgeStatus = TraceStatus.SUCCEEDED;
+        } catch (KnowledgeRetrievalException exception) {
+            knowledge = new KnowledgeRetrievalResult(List.of(), List.of());
+            knowledgeStatus = TraceStatus.DEGRADED;
+        }
+        observer.completed(PlanningStep.KNOWLEDGE_RETRIEVAL, knowledgeStatus,
+                elapsed(knowledgeStarted), PlanningTraceDetails.empty());
+
+        observer.started(PlanningStep.TOOL_EXECUTION);
+        long toolStarted = System.nanoTime();
         ToolExecutionBundle bundle;
         try {
             bundle = toolDispatcher.execute(policy, plan);
         } catch (RuntimeException exception) {
+            observer.failed(PlanningStep.TOOL_EXECUTION, elapsed(toolStarted), "TOOL_PREPARATION_FAILED");
             throw new PlanningPreparationException("TOOL_PREPARATION_FAILED");
         }
 
@@ -120,6 +157,7 @@ public final class DefaultPlanningPreparationGateway implements PlanningPreparat
             }
         }
         if (!poiActionSeen || poiFailure || places.isEmpty()) {
+            observer.failed(PlanningStep.TOOL_EXECUTION, elapsed(toolStarted), "POI_DATA_UNAVAILABLE");
             throw new PlanningPreparationException("POI_DATA_UNAVAILABLE");
         }
         WeatherResult weather = forecasts.isEmpty() ? null : new WeatherResult(forecasts.stream()
@@ -129,17 +167,13 @@ public final class DefaultPlanningPreparationGateway implements PlanningPreparat
         int cacheHits = (int) bundle.executions().stream().filter(ToolExecutionBundle.Execution::cacheHit).count();
         PlanningPreparationResult.ToolSummary summary = new PlanningPreparationResult.ToolSummary(
                 cacheHits, bundle.providerCallCounts(), coordinates, weather != null);
+        observer.completed(PlanningStep.TOOL_EXECUTION,
+                weather != null ? TraceStatus.SUCCEEDED : TraceStatus.DEGRADED,
+                elapsed(toolStarted), PlanningTraceDetails.preparation(summary));
         return new PlanningPreparationResult(facts, summary);
     }
 
-    private KnowledgeRetrievalResult retrieveKnowledge(String query, String city) {
-        try {
-            return knowledgeService.retrieve(query, city);
-        } catch (KnowledgeRetrievalException exception) {
-            // 知识证据是可选增强；失败时白名单为空，后续生成器只能使用 FACT/AI_ESTIMATE/MISSING。
-            return new KnowledgeRetrievalResult(List.of(), List.of());
-        }
-    }
+    private static long elapsed(long started) { return Math.max(1L, (System.nanoTime() - started) / 1_000_000L); }
 
     private static boolean isRoute(TravelToolType type) {
         return type == TravelToolType.WALKING_ROUTE

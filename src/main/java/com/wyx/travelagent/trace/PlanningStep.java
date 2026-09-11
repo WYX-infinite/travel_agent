@@ -8,6 +8,10 @@ package com.wyx.travelagent.trace;
 public enum PlanningStep {
     /** 需求合并与完整性校验。 */
     REQUIREMENT,
+    /** 仅执行按城市隔离的知识检索，不表示工具已经运行。 */
+    KNOWLEDGE_RETRIEVAL,
+    /** 仅执行经过白名单校验的旅行工具，不表示模型已经生成行程。 */
+    TOOL_EXECUTION,
     /** 知识、工具与可信事实准备。 */
     PREPARATION,
     /** 初稿结构化生成。 */

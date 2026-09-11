@@ -5,6 +5,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.Select;
+import java.util.List;
 
 /** travel_plan 的最小 MyBatis 写映射；不读取其他用户数据。 */
 @Mapper
@@ -40,4 +42,12 @@ interface TravelPlanMapper {
     /** @return 恰好一行表示状态更新成功。 */
     @Update("UPDATE travel_plan SET status = #{status} WHERE id = #{planId}")
     int updateStatus(@Param("planId") long planId, @Param("status") String status);
+
+    /** @param userId 正用户编号 @return 该用户主记录，按创建时间与主键倒序。 */
+    @Select("SELECT * FROM travel_plan WHERE user_id=#{userId} ORDER BY created_at DESC, id DESC")
+    List<TravelPlanRow> findAllByUserId(@Param("userId") int userId);
+
+    /** @param planId 正行程编号 @param userId 正用户编号 @return 用户拥有的主记录，否则为空。 */
+    @Select("SELECT * FROM travel_plan WHERE id=#{planId} AND user_id=#{userId}")
+    TravelPlanRow findOwned(@Param("planId") long planId, @Param("userId") int userId);
 }

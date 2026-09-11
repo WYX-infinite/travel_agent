@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 @MapperScan(
         basePackages = {
                 "com.wyx.travelagent.planning.persistence",
+                "com.wyx.travelagent.planning.task",
                 "com.wyx.travelagent.trace"
         },
         annotationClass = Mapper.class)

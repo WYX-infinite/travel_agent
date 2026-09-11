@@ -14,4 +14,16 @@ public interface PlanningTraceRepository {
      * 实现可以写入数据库，但不得访问模型、工具、缓存或文件；认证由上层入口负责。
      */
     void append(PlanningTraceEvent event);
+
+    /**
+     * 按数据库主键升序读取游标之后的事件。
+     * @param taskId 正任务编号
+     * @param afterEventId 非负排他游标，零表示从头读取
+     * @param limit 一至二百的批量上限
+     * @return 非空、有序且不可修改的脱敏事件列表
+     * 默认返回空以保持任务十三函数式 Fake 兼容；生产实现只查询数据库，认证由上层负责。
+     */
+    default java.util.List<PersistedPlanningTrace> findAfter(long taskId, long afterEventId, int limit) {
+        return java.util.List.of();
+    }
 }

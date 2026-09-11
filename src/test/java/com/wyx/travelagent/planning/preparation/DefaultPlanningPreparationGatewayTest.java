@@ -22,6 +22,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.ArrayList;
+import com.wyx.travelagent.trace.PlanningStep;
+import com.wyx.travelagent.trace.PlanningTraceDetails;
+import com.wyx.travelagent.trace.TraceStatus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -78,6 +82,33 @@ class DefaultPlanningPreparationGatewayTest {
                 knowledge, dispatcher).prepare(requirement(), "杭州旅行", policy, plan))
                 .isInstanceOf(PlanningPreparationException.class)
                 .hasMessage("POI_DATA_UNAVAILABLE");
+    }
+
+    @Test
+    void observerReportsKnowledgeThenToolOnlyWhenThoseStagesActuallyRun() {
+        TravelToolDispatcher dispatcher = mock(TravelToolDispatcher.class);
+        KnowledgeRetrievalService knowledge = mock(KnowledgeRetrievalService.class);
+        ToolExecutionPolicy policy = mock(ToolExecutionPolicy.class);
+        ToolPlan plan = new ToolPlan("杭州", List.of(new ToolAction("searchPoi", Map.of())));
+        when(knowledge.retrieve("杭州旅行", "杭州")).thenReturn(new KnowledgeRetrievalResult(List.of(), List.of()));
+        when(dispatcher.execute(policy, plan)).thenReturn(new ToolExecutionBundle(List.of(
+                new ToolExecutionBundle.Execution(TravelToolType.SEARCH_POI,
+                        ToolResult.success("place", now(), List.of(place())), false)), Map.of("place", 1)));
+        List<String> events = new ArrayList<>();
+        PlanningPreparationObserver observer = new PlanningPreparationObserver() {
+            @Override public void started(PlanningStep step) { events.add("start:" + step); }
+            @Override public void completed(PlanningStep step, TraceStatus status, long durationMs,
+                                            PlanningTraceDetails details) { events.add("end:" + step + ":" + status); }
+            @Override public void failed(PlanningStep step, long durationMs, String errorCode) {
+                events.add("failed:" + step + ":" + errorCode);
+            }
+        };
+
+        new DefaultPlanningPreparationGateway(knowledge, dispatcher)
+                .prepare(requirement(), "杭州旅行", policy, plan, observer);
+
+        assertThat(events).containsExactly("start:KNOWLEDGE_RETRIEVAL", "end:KNOWLEDGE_RETRIEVAL:SUCCEEDED",
+                "start:TOOL_EXECUTION", "end:TOOL_EXECUTION:DEGRADED");
     }
 
     private static TravelRequirement requirement() {

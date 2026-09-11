@@ -3,6 +3,9 @@ package com.wyx.travelagent.planning.preparation;
 import com.wyx.travelagent.planning.model.TravelRequirement;
 import com.wyx.travelagent.tools.dispatch.ToolExecutionPolicy;
 import com.wyx.travelagent.tools.dispatch.ToolPlan;
+import com.wyx.travelagent.trace.PlanningStep;
+import com.wyx.travelagent.trace.PlanningTraceDetails;
+import com.wyx.travelagent.trace.TraceStatus;
 
 /**
  * 业务问题：隔离知识检索、受控工具执行和事实转换，使编排器只接收内部可信对象。
@@ -28,4 +31,27 @@ public interface PlanningPreparationGateway {
             String knowledgeQuery,
             ToolExecutionPolicy policy,
             ToolPlan plan);
+
+    /**
+     * 在保持旧函数式实现兼容的前提下观察事实准备阶段。
+     * @param requirement 已校验需求
+     * @param knowledgeQuery 非空检索查询
+     * @param policy 非空受控工具策略
+     * @param plan 非空白名单计划
+     * @param observer 非空阶段观察器
+     * @return 非空事实与脱敏摘要
+     * 默认实现把不可拆分的旧网关诚实标记为 PREPARATION；实现按需访问知识、工具、缓存和网络，认证由上层负责。
+     */
+    default PlanningPreparationResult prepare(TravelRequirement requirement, String knowledgeQuery,
+                                               ToolExecutionPolicy policy, ToolPlan plan,
+                                               PlanningPreparationObserver observer) {
+        observer.started(PlanningStep.PREPARATION);
+        long started = System.nanoTime();
+        PlanningPreparationResult result = prepare(requirement, knowledgeQuery, policy, plan);
+        observer.completed(PlanningStep.PREPARATION,
+                result.toolSummary().weatherAvailable() ? TraceStatus.SUCCEEDED : TraceStatus.DEGRADED,
+                Math.max(1L, (System.nanoTime() - started) / 1_000_000L),
+                PlanningTraceDetails.preparation(result.toolSummary()));
+        return result;
+    }
 }

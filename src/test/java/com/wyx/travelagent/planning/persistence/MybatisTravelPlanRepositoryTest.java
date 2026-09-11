@@ -14,6 +14,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,6 +74,27 @@ class MybatisTravelPlanRepositoryTest {
                 .hasMessage("PLAN_PERSISTENCE_FAILED");
 
         verify(transactions).rollback(transactionStatus);
+    }
+
+    @Test
+    void readsOnlyOwnedPlanAndStrictlyDecodesTypedVersions() throws Exception {
+        Instant now = Instant.parse("2026-10-01T00:00:00Z");
+        TravelPlanRow planRow = new TravelPlanRow(); planRow.setId(42L); planRow.setUserId(7);
+        planRow.setDestinationCity("杭州"); planRow.setStartDate(LocalDate.of(2026, 10, 1));
+        planRow.setEndDate(LocalDate.of(2026, 10, 1)); planRow.setCurrentVersion(1);
+        planRow.setStatus("COMPLETED"); planRow.setCreatedAt(now); planRow.setUpdatedAt(now);
+        when(plans.findOwned(42, 7)).thenReturn(planRow);
+        ObjectMapper json = new ObjectMapper().findAndRegisterModules();
+        TravelPlanVersionRow versionRow = new TravelPlanVersionRow(); versionRow.setId(501L); versionRow.setPlanId(42L);
+        versionRow.setVersionNumber(1); versionRow.setItineraryJson(json.writeValueAsString(draft().plan()));
+        versionRow.setValidationJson(json.writeValueAsString(draft().validationReport()));
+        versionRow.setMetricsJson(json.writeValueAsString(draft().metrics())); versionRow.setCreatedAt(now);
+        when(versions.findOwnedVersions(42, 7)).thenReturn(List.of(versionRow));
+
+        assertThat(repository.findByIdAndUserId(42, 7)).get().extracting(TravelPlanRepository.PlanRecord::userId).isEqualTo(7);
+        assertThat(repository.findVersionsByPlanIdAndUserId(42, 7)).singleElement()
+                .extracting(TravelPlanRepository.PlanVersion::versionNumber).isEqualTo(1);
+        verify(plans).findOwned(42, 7); verify(versions).findOwnedVersions(42, 7);
     }
 
     private static TravelPlanRepository.VersionDraft draft() {

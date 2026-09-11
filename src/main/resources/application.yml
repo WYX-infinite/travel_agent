@@ -47,6 +47,15 @@ amap:
   api-key: ${AMAP_WEB_API_KEY:${travel.local-secrets.amap-web-api-key:}}
 
 travel:
+  planning:
+    executor:
+      pool-size: ${TRAVEL_PLANNING_POOL_SIZE:2}
+      queue-capacity: ${TRAVEL_PLANNING_QUEUE_CAPACITY:8}
+      await-termination-seconds: ${TRAVEL_PLANNING_SHUTDOWN_WAIT_SECONDS:30}
+    sse:
+      poll-interval-ms: ${TRAVEL_PLANNING_SSE_POLL_INTERVAL_MS:500}
+      timeout-ms: ${TRAVEL_PLANNING_SSE_TIMEOUT_MS:1800000}
+      max-connections: ${TRAVEL_PLANNING_SSE_MAX_CONNECTIONS:100}
   ai:
     context:
       model-context-window-tokens: ${TRAVEL_MODEL_CONTEXT_WINDOW_TOKENS:32768}

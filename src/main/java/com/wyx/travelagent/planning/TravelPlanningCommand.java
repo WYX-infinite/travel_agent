@@ -1,6 +1,7 @@
 package com.wyx.travelagent.planning;
 
 import com.wyx.travelagent.planning.model.TravelRequirementInput;
+import com.wyx.travelagent.planning.model.ResolvedTravelRequirement;
 import com.wyx.travelagent.tools.dispatch.ToolExecutionPolicy;
 import com.wyx.travelagent.tools.dispatch.ToolPlan;
 
@@ -17,6 +18,7 @@ import java.util.Objects;
  * @param knowledgeQuery 非空知识检索查询
  * @param toolPolicy 非空受控工具执行策略
  * @param toolPlan 非空白名单工具计划
+ * @param resolvedRequirement 可为空的上层冻结结果；为空时保持任务十三原有的偏好读取语义
  */
 public record TravelPlanningCommand(
         long taskId,
@@ -24,7 +26,23 @@ public record TravelPlanningCommand(
         TravelRequirementInput requirementInput,
         String knowledgeQuery,
         ToolExecutionPolicy toolPolicy,
-        ToolPlan toolPlan) {
+        ToolPlan toolPlan,
+        ResolvedTravelRequirement resolvedRequirement) {
+
+    /**
+     * 保持任务十三调用方兼容的六参数构造器。
+     * @param taskId 已由上层创建的正规划任务编号
+     * @param userId 认证层提供的正用户编号
+     * @param requirementInput 非空、不含用户编号的原始结构化需求
+     * @param knowledgeQuery 非空知识检索查询
+     * @param toolPolicy 非空受控工具执行策略
+     * @param toolPlan 非空白名单工具计划
+     * 本构造不访问外部资源，冻结结果为空表示由同步编排器读取偏好；认证由上层负责。
+     */
+    public TravelPlanningCommand(long taskId, int userId, TravelRequirementInput requirementInput,
+                                 String knowledgeQuery, ToolExecutionPolicy toolPolicy, ToolPlan toolPlan) {
+        this(taskId, userId, requirementInput, knowledgeQuery, toolPolicy, toolPlan, null);
+    }
 
     /** 创建可信边界命令；只校验内存值，不访问外部资源，也不处理认证。 */
     public TravelPlanningCommand {

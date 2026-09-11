@@ -3,11 +3,12 @@ package com.wyx.travelagent.trace;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.List;
 
 /**
  * 业务问题：统一创建并落库脱敏 Trace，避免编排器拼接用户文本或底层异常。
  * 输入仅允许稳定枚举、错误码和字段白名单详情；输出写入仓储，不保存完整 Prompt、回复、Key、对话或偏好历史。
- * 本类型通过仓储访问数据库，不访问模型、缓存、文件或网络，认证由上层入口负责。任务十三只记录同步编排；本类型不负责查询、异步推送或保存原始内容。
+ * 本类型通过仓储访问数据库，不访问模型、缓存、文件或网络，认证由上层入口负责。任务十三记录同步编排、任务十四复用脱敏查询；本类型不负责异步推送或保存原始内容。
  */
 public final class PlanningTraceService {
     private final PlanningTraceRepository repository;
@@ -70,9 +71,26 @@ public final class PlanningTraceService {
                 durationMs, PlanningTraceDetails.empty(), code, safeMessage(step), Instant.now(clock)));
     }
 
+    /**
+     * 查询指定任务游标之后的脱敏事件。
+     * @param taskId 正任务编号
+     * @param afterEventId 非负排他游标
+     * @param limit 一至二百的批量上限
+     * @return 非空、主键升序的事件列表
+     * 本方法只通过仓储查询数据库，不访问模型、缓存、文件或网络；认证由上层入口负责，调用方必须先完成用户所有权检查。
+     */
+    public List<PersistedPlanningTrace> findAfter(long taskId, long afterEventId, int limit) {
+        if (taskId <= 0 || afterEventId < 0 || limit < 1 || limit > 200) {
+            throw new IllegalArgumentException("INVALID_TRACE_CURSOR");
+        }
+        return List.copyOf(repository.findAfter(taskId, afterEventId, limit));
+    }
+
     private static String safeMessage(PlanningStep step) {
         return switch (Objects.requireNonNull(step, "step")) {
             case REQUIREMENT -> "requirement preparation failed";
+            case KNOWLEDGE_RETRIEVAL -> "knowledge retrieval failed";
+            case TOOL_EXECUTION -> "travel tool execution failed";
             case PREPARATION -> "planning facts are unavailable";
             case GENERATION -> "itinerary generation failed";
             case VALIDATION -> "itinerary validation failed";
