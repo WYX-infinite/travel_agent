@@ -7,7 +7,7 @@
           <router-link to="/index" class="nav-link">首页</router-link>
         </li>
         <li class="nav-item">
-          <router-link to="/suggest" class="nav-link">旅行推荐</router-link>
+          <router-link to="/planner" class="nav-link">旅行规划</router-link>
         </li>
         <li class="nav-item">
           <router-link to="/collect" class="nav-link">我的收藏</router-link>
