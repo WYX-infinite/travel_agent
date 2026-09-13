@@ -1,6 +1,7 @@
 package com.wyx.travelagent.common.api;
 
 import com.wyx.travelagent.knowledge.admin.KnowledgeUploadException;
+import com.wyx.travelagent.knowledge.admin.KnowledgeAdministrationException;
 import com.wyx.travelagent.knowledge.ingest.KnowledgeIngestionException;
 import com.wyx.travelagent.planning.memory.PreferenceMemoryException;
 import com.wyx.travelagent.planning.task.PlanningTaskException;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -75,6 +77,14 @@ public class GlobalExceptionHandler {
                 new ApiError("VALIDATION_ERROR", "request validation failed", null)));
     }
 
+    /** 路径或查询参数类型绑定失败时仍返回统一 400，而不是空响应。 */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException exception) {
+        return ResponseEntity.badRequest().body(ApiResponse.fail(
+                new ApiError("VALIDATION_ERROR", "request validation failed", null)));
+    }
+
     /**
      * 处理 multipart 必填字段或文件部分缺失。
      *
@@ -98,6 +108,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(KnowledgeUploadException.class)
     public ResponseEntity<ApiResponse<Void>> handleKnowledgeUpload(KnowledgeUploadException exception) {
+        ApiError error = new ApiError(exception.code(), exception.getMessage(), null);
+        return ResponseEntity.status(exception.status()).body(ApiResponse.fail(error));
+    }
+
+    /** 把知识库后台管理异常映射为稳定状态、错误码和脱敏消息。 */
+    @ExceptionHandler(KnowledgeAdministrationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleKnowledgeAdministration(
+            KnowledgeAdministrationException exception) {
         ApiError error = new ApiError(exception.code(), exception.getMessage(), null);
         return ResponseEntity.status(exception.status()).body(ApiResponse.fail(error));
     }

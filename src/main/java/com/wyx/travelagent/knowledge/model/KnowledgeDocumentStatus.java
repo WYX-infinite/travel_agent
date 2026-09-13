@@ -13,6 +13,8 @@ public enum KnowledgeDocumentStatus {
     INDEXING,
     /** 任务九确认数据库与正式索引一致后可参与检索的状态。 */
     ACTIVE,
+    /** 管理员显式停用，数据库白名单和重建后的索引均不得包含其切片。 */
+    DISABLED,
     /** 后续处理失败且保存了脱敏失败原因的状态。 */
     FAILED
 }

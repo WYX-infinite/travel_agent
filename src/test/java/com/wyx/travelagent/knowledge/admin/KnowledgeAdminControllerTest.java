@@ -13,26 +13,38 @@ import com.wyx.travelagent.knowledge.ingest.TestDocumentFixtures;
 import com.wyx.travelagent.knowledge.ingest.TikaDocumentParser;
 import com.wyx.travelagent.knowledge.model.KnowledgeDocument;
 import com.wyx.travelagent.knowledge.model.KnowledgeDocumentStatus;
+import com.wyx.travelagent.knowledge.model.KnowledgeDocumentType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.util.unit.DataSize;
 
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class KnowledgeAdminControllerTest {
@@ -43,6 +55,7 @@ class KnowledgeAdminControllerTest {
     private MockMvc mockMvc;
     private JwtTokenService tokenService;
     private KnowledgeIngestionService ingestionService;
+    private KnowledgeAdministrationService administrationService;
     private MockMultipartFile textFile;
 
     @BeforeEach
@@ -53,6 +66,7 @@ class KnowledgeAdminControllerTest {
         KnowledgeDocumentUploadService service = new KnowledgeDocumentUploadService(
                 properties, new TikaDocumentParser(10_000));
         ingestionService = mock(KnowledgeIngestionService.class);
+        administrationService = mock(KnowledgeAdministrationService.class);
         when(ingestionService.ingest(any())).thenAnswer(invocation -> {
             KnowledgeDocument source = invocation
                     .<com.wyx.travelagent.knowledge.admin.UploadedKnowledgeDocument>getArgument(0)
@@ -64,7 +78,37 @@ class KnowledgeAdminControllerTest {
                     KnowledgeDocumentStatus.ACTIVE, null, source.uploadedBy(),
                     source.createdAt(), source.updatedAt());
         });
-        KnowledgeAdminController controller = new KnowledgeAdminController(service, ingestionService);
+        Instant now = Instant.parse("2026-09-13T04:00:00Z");
+        KnowledgeDocumentSummaryResponse summary = new KnowledgeDocumentSummaryResponse(
+                42L, "西湖游览说明", "杭州", "杭州市文化广电旅游局",
+                URI.create("https://example.test/source"), LocalDate.of(2026, 8, 1),
+                KnowledgeDocumentType.OFFICIAL_NOTICE, KnowledgeDocumentStatus.ACTIVE,
+                2, now, now, null);
+        KnowledgeDocumentDetailResponse detail = new KnowledgeDocumentDetailResponse(
+                42L, "西湖游览说明", "杭州", "杭州市文化广电旅游局",
+                URI.create("https://example.test/source"), LocalDate.of(2026, 8, 1),
+                KnowledgeDocumentType.OFFICIAL_NOTICE, KnowledgeDocumentStatus.ACTIVE,
+                2, now, now, null, "guide.txt", "text/plain", 128, "a".repeat(64));
+        when(administrationService.listDocuments()).thenReturn(List.of(summary));
+        when(administrationService.getDocument(42L)).thenReturn(detail);
+        when(administrationService.getChunks(42L, 0, 20)).thenReturn(
+                new KnowledgeChunkPageResponse(
+                        List.of(new KnowledgeChunkPreviewResponse(
+                                88L, 42L, 0, "安全预览正文", now)),
+                        0, 20, 1, 1));
+        when(administrationService.changeStatus(42L, "DISABLED")).thenReturn(
+                new KnowledgeDocumentDetailResponse(
+                        detail.id(), detail.title(), detail.city(), detail.publisher(),
+                        detail.sourceUrl(), detail.publishedAt(), detail.documentType(),
+                        KnowledgeDocumentStatus.DISABLED, detail.chunkCount(),
+                        detail.createdAt(), now, detail.failureReason(),
+                        detail.originalFilename(), detail.contentType(), detail.fileSize(), detail.sha256()));
+        when(administrationService.deleteDocument(42L)).thenReturn(
+                new KnowledgeDocumentDeletionResponse(42L, true, now));
+        when(administrationService.reindex()).thenReturn(
+                new KnowledgeReindexResponse(1, 2, now));
+        KnowledgeAdminController controller =
+                new KnowledgeAdminController(service, ingestionService, administrationService);
         tokenService = new JwtTokenService(
                 new JwtProperties(System.getenv("TRAVEL_JWT_SECRET"),
                         "travel-planning-agent", Duration.ofHours(2)));
@@ -93,6 +137,15 @@ class KnowledgeAdminControllerTest {
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data.sha256").isString())
                 .andExpect(jsonPath("$.error").doesNotExist());
+    }
+
+    @Test
+    void adminCanListKnowledgeDocumentsThroughUnifiedApiResponse() throws Exception {
+        mockMvc.perform(get("/api/admin/knowledge-documents")
+                        .header("Authorization", "Bearer " + adminToken()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data").isArray());
     }
 
     @Test

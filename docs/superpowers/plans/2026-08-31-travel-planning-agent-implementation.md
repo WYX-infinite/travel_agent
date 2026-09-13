@@ -245,7 +245,23 @@ GET /api/plans/{planId}
 }
 ```
 
-知识库上传使用 `multipart/form-data`，字段固定为 `file`、`title`、`city`、`publisher`、`sourceUrl`、`publishedAt`、`documentType`。列表响应必须包含 `id`、`title`、`city`、`publisher`、`sourceUrl`、`status`、`chunkCount`、`createdAt` 和 `failureReason`。
+知识库上传使用 `multipart/form-data`，字段固定为 `file`、`title`、`city`、`publisher`、`sourceUrl`、`publishedAt`、`documentType`。冻结后的管理端后端契约为：
+
+```http
+POST   /api/admin/knowledge-documents
+GET    /api/admin/knowledge-documents
+GET    /api/admin/knowledge-documents/{id}
+GET    /api/admin/knowledge-documents/{id}/chunks?page=0&size=20
+PATCH  /api/admin/knowledge-documents/{id}/status
+DELETE /api/admin/knowledge-documents/{id}
+POST   /api/admin/knowledge-documents/reindex
+```
+
+列表项固定包含 `id`、`title`、`city`、`publisher`、`sourceUrl`、`publishedAt`、`documentType`、`status`、`chunkCount`、`createdAt`、`updatedAt` 和脱敏 `failureReason`；单次聚合查询必须包含零切片文档，并按 `createdAt DESC, id DESC` 排序。详情在此基础上只增加 `originalFilename`、`contentType`、`fileSize` 和 `sha256`。列表和详情均不得公开 `storedFilename`、服务器路径、正文、向量或堆栈。
+
+切片响应使用 `items/page/size/totalElements/totalPages`，默认 `0/20`、最大 `size=100`，按 `chunkIndex, id` 排序，项目只含 `id/documentId/chunkIndex/content/createdAt`。状态请求为 `{"status":"ACTIVE"}` 或 `{"status":"DISABLED"}`；只允许 `ACTIVE ↔ DISABLED`，相同目标不重复写数据库但仍按 ACTIVE 全集重建对账，`UPLOADED/INDEXING/FAILED` 均返回冲突。状态改变后使用数据库当前 ACTIVE 切片全集重建索引；失败时条件恢复原状态并再次按恢复后的 ACTIVE 全集重建，任何补偿失败必须显式返回错误，禁止假成功。
+
+删除仅允许 `DISABLED` 和 `FAILED`，`ACTIVE` 必须先停用，`INDEXING` 也拒绝。删除前先按数据库 ACTIVE 全集重建索引，以清除极端补偿失败遗留的非 ACTIVE 索引项；随后只可用受控 `uploadRoot` 与数据库服务端文件名解析单个文件，先原子移入 `.deleting`、再短事务条件删除数据库行。数据库失败时原子移回，提交后的最终清理失败只留下不含路径的安全运维日志。重建接口只读取数据库 ACTIVE 文档与切片，空集合也发布空索引，并只返回 `activeDocumentCount/chunkCount/rebuiltAt`。所有端点继续由后端 `/api/admin/**` ADMIN 校验保护。
 
 包迁移完成后，不得同时保留 `com.test` 和 `com.wyx.travelagent` 两套生产代码。首期不得引入 LangGraph4j、独立向量数据库、Docker 或其他后端服务。
 
@@ -1070,6 +1086,8 @@ git commit -m "feat: orchestrate bounded planning repair and trace"
 
 **负责人：** Codex 执行，用户验收；完成后冻结前后端 API 契约。
 
+任务十四冻结门禁补丁同时补齐 1.3 节的知识库管理后端契约；管理查询、状态机、删除和重建使用独立 `KnowledgeAdministrationService` 与 `KnowledgeAdministrationPersistence`，不堆入上传入库服务。
+
 **涉及文件：**
 - 新建： `travel_agent/src/main/java/com/wyx/travelagent/planning/task/PlanningTaskService.java`
 - 新建： `travel_agent/src/main/java/com/wyx/travelagent/planning/task/PlanningTask.java`
@@ -1166,6 +1184,8 @@ git commit -m "feat: add travel planner and sourced itinerary views"
 
 **负责人：** Codex（仅修改 `web/**`）。
 
+任务十四补丁已经提供全部知识库管理后端接口；任务十六不得再修改后端契约或 Java 代码，只消费 1.3 节冻结 DTO。
+
 **涉及文件：**
 - 新建： `travel_agent/web/src/views/MyPlans.vue`
 - 新建： `travel_agent/web/src/views/PreferenceSettings.vue`
@@ -1190,7 +1210,7 @@ git commit -m "feat: add travel planner and sourced itinerary views"
 
 - [ ] **步骤 4：实现知识库管理页面**
 
-文件、标题、城市、发布机构、来源 URL、发布日期和文档类型均为必填项。页面展示 `UPLOADED`、`INDEXING`、`ACTIVE`、`FAILED` 状态，以及切片预览、启停、删除和重建索引操作；管理员权限最终由后端判定。
+文件、标题、城市、发布机构、来源 URL、发布日期和文档类型均为必填项。页面展示 `UPLOADED`、`INDEXING`、`ACTIVE`、`DISABLED`、`FAILED` 状态，以及有界切片预览、启停、删除和重建索引操作；只有 ACTIVE 与 DISABLED 可互相切换，删除前必须先停用，管理员权限最终由后端判定。
 
 - [ ] **步骤 5：分别完成前端验证与后端契约确认**
 

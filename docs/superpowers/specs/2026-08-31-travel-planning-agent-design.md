@@ -257,11 +257,14 @@ class ItineraryItem {
   → 先写 data/index/knowledge-index.json.tmp
   → 原子替换 data/index/knowledge-index.json
   → MySQL保存文档、切片和来源
+  → 条件迁移为 ACTIVE
 ```
 
 默认切片约 500～800 个中文字符，重叠约 100 字。最终参数由评测结果校准，而不是宣称为通用最佳值。
 
 首期 Embedding 模型固定为 DashScope `text-embedding-v3`，通过远程 API 调用；“本地 EmbeddingStore”仅表示向量索引保存在项目本机磁盘，不表示在本机运行 Embedding 模型。首期不接入本地 Hugging Face、ONNX、DJL 或 Python 推理。正式索引文件固定为 `data/index/knowledge-index.json`，临时文件固定为 `data/index/knowledge-index.json.tmp`，两者均不得提交到 Git。更换 Embedding 模型后必须使用全部启用切片重建索引，禁止混用不同模型生成的向量。
+
+文档状态固定为 `UPLOADED`、`INDEXING`、`ACTIVE`、`DISABLED`、`FAILED`。上传入库只执行 `UPLOADED → INDEXING → ACTIVE/FAILED`；管理员只可执行 `ACTIVE ↔ DISABLED`，不得使用 UPLOADED 冒充停用。
 
 ### 9.3 检索与引用
 
@@ -272,7 +275,7 @@ class ItineraryItem {
 5. 模型输出使用的 `chunkId`。
 6. 后端校验 `chunkId` 是否属于本次检索结果。
 
-无有效片段时不得生成知识性结论。删除或停用文档后，因为首期数据量小，允许重建本地索引以保证 MySQL 与索引一致。
+无有效片段时不得生成知识性结论。MySQL 的城市与 ACTIVE 切片联表查询始终是检索白名单事实源；即使磁盘索引短暂残留旧向量，DISABLED 文档也不得进入检索结果。删除、停用、启用或手动重建时，使用数据库当前 ACTIVE 全集原子替换索引；状态变更后的重建失败必须条件恢复原状态并再次重建，补偿失败显式返回，不得假成功。
 
 ## 10. 受控工具调用
 
@@ -512,13 +515,16 @@ POST /api/plans/{planId}/replan
 ```http
 POST   /api/admin/knowledge-documents
 GET    /api/admin/knowledge-documents
+GET    /api/admin/knowledge-documents/{id}
 GET    /api/admin/knowledge-documents/{id}/chunks
 PATCH  /api/admin/knowledge-documents/{id}/status
 DELETE /api/admin/knowledge-documents/{id}
 POST   /api/admin/knowledge-documents/reindex
 ```
 
-所有管理接口在后端执行 `ADMIN` 权限校验。
+所有管理接口在后端执行 `ADMIN` 权限校验，`USER` 访问统一返回 403。列表和详情仅返回业务安全字段，不暴露服务端存储文件名、绝对路径或向量；详情额外返回切片数。切片预览按 `page=0&size=20` 分页，`size` 最大为 100，并按 `chunk_index` 稳定排序。
+
+状态接口只接受 `ACTIVE` 与 `DISABLED`；同状态请求不重复写数据库，但返回成功前仍以 ACTIVE 全集重建索引完成对账。状态切换成功后以数据库当前 ACTIVE 全集原子重建索引，重建失败时条件恢复原状态并再次重建。删除仅允许 `DISABLED` 或 `FAILED` 文档，先按 ACTIVE 全集重建以清除可能遗留的非 ACTIVE 索引项，再将受控文件原子移动至上传根目录内的隔离区并短事务删除数据库记录；数据库删除失败时恢复文件，提交后的隔离文件清理失败只记录安全日志，不把已提交删除伪装成失败。手动重建返回活动文档数、切片数和完成时间；空库必须成功清空索引。状态、删除和手动重建在单实例内串行执行。
 
 ### 14.4 用户偏好记忆
 
@@ -573,6 +579,9 @@ GET 返回当前用户明确保存的结构化偏好；PUT 执行枚举、长度
 | 工具调用达上限 | 使用已有数据或返回数据不足 |
 | Redis 失败 | 绕过缓存，直接调用外部服务 |
 | 偏好读取失败 | 只使用本次请求继续规划，并在 Trace 中记录记忆未应用 |
+| 知识库状态切换后索引重建失败 | 条件恢复原状态并按恢复后的 ACTIVE 全集再次重建；补偿失败时返回明确错误，禁止假成功 |
+| 知识文档删除的数据库步骤失败 | 将隔离文件恢复到原受控位置；恢复失败时返回明确的补偿失败错误 |
+| 知识文档删除提交后的隔离文件清理失败 | 数据库删除仍视为成功，隔离文件留待清理，并且日志不得泄露存储路径 |
 
 外部调用设置连接和读取超时，最多重试一次。每名用户同时只允许一个规划任务，后台使用受限线程池。服务重启后，将遗留 `RUNNING` 任务标记为失败并允许重新执行。
 
@@ -648,3 +657,4 @@ GET 返回当前用户明确保存的结构化偏好；PUT 执行枚举、长度
 9. 自动化测试覆盖核心规则和外部失败场景。
 10. 评测结果、数据来源和已知限制写入 README。
 11. 用户可以查看、修改、清空或对单次任务关闭偏好记忆，且当前请求能覆盖历史偏好。
+12. 知识库上传、列表、详情、切片预览、状态、删除和重建接口均受 ADMIN 保护；DISABLED 文档被数据库 ACTIVE 白名单排除，状态与删除失败补偿均有自动化测试。

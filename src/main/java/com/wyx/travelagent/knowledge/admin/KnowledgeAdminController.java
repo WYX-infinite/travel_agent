@@ -9,7 +9,12 @@ import com.wyx.travelagent.knowledge.model.KnowledgeDocumentType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.Locale;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -32,6 +38,7 @@ import java.util.Objects;
 public class KnowledgeAdminController {
     private final KnowledgeDocumentUploadService uploadService;
     private final KnowledgeIngestionService ingestionService;
+    private final KnowledgeAdministrationService administrationService;
 
     /**
      * 创建保持轻量的管理员上传 Controller。
@@ -41,9 +48,54 @@ public class KnowledgeAdminController {
      */
     public KnowledgeAdminController(
             KnowledgeDocumentUploadService uploadService,
-            KnowledgeIngestionService ingestionService) {
+            KnowledgeIngestionService ingestionService,
+            KnowledgeAdministrationService administrationService) {
         this.uploadService = Objects.requireNonNull(uploadService, "uploadService");
         this.ingestionService = Objects.requireNonNull(ingestionService, "ingestionService");
+        this.administrationService =
+                Objects.requireNonNull(administrationService, "administrationService");
+    }
+
+    /** 返回全部文档的单次数据库聚合安全摘要。 */
+    @GetMapping
+    public ApiResponse<List<KnowledgeDocumentSummaryResponse>> list() {
+        return ApiResponse.ok(administrationService.listDocuments());
+    }
+
+    /** 返回单份文档的安全管理详情。 */
+    @GetMapping("/{id}")
+    public ApiResponse<KnowledgeDocumentDetailResponse> detail(@PathVariable Long id) {
+        return ApiResponse.ok(administrationService.getDocument(id));
+    }
+
+    /** 返回默认 0/20、最大 100 的有界切片预览页。 */
+    @GetMapping("/{id}/chunks")
+    public ApiResponse<KnowledgeChunkPageResponse> chunks(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(administrationService.getChunks(id, page, size));
+    }
+
+    /** 只接受 ACTIVE 或 DISABLED，未知字符串由服务映射为专用错误码。 */
+    @PatchMapping(path = "/{id}/status", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ApiResponse<KnowledgeDocumentDetailResponse> changeStatus(
+            @PathVariable Long id,
+            @RequestBody KnowledgeDocumentStatusRequest request) {
+        return ApiResponse.ok(administrationService.changeStatus(
+                id, request == null ? null : request.status()));
+    }
+
+    /** 删除已停用或失败文档及其级联切片，并受控清理上传文件。 */
+    @DeleteMapping("/{id}")
+    public ApiResponse<KnowledgeDocumentDeletionResponse> delete(@PathVariable Long id) {
+        return ApiResponse.ok(administrationService.deleteDocument(id));
+    }
+
+    /** 使用当前数据库 ACTIVE 白名单显式重建正式索引。 */
+    @PostMapping("/reindex")
+    public ApiResponse<KnowledgeReindexResponse> reindex() {
+        return ApiResponse.ok(administrationService.reindex());
     }
 
     /**
