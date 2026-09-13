@@ -88,6 +88,7 @@
 
 <script>
 import axios from "axios";
+import session from "../auth/session.cjs";
 
 import {
   Calendar,
@@ -150,27 +151,13 @@ export default {
      * 初始化页面
      */
     initPage() {
-      /*
-       * 从 localStorage 获取用户信息
-       */
-      const userString =
-          localStorage.getItem("user");
-      /*
-       * 防止用户不存在时
-       * JSON.parse 或 this.user.id 报错
-       */
-      if (!userString) {
+      const profile = session.getUserProfile(sessionStorage);
+      if (!profile) {
         this.loading = false;
         console.warn("未获取到用户登录信息");
         return;
       }
-      try {
-        this.user = JSON.parse(userString);
-      } catch (error) {
-        console.error("用户信息解析失败：", error);
-        this.loading = false;
-        return;
-      }
+      this.user = profile;
 
       /*
        * 检查用户 id

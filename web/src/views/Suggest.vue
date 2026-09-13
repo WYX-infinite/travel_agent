@@ -190,6 +190,7 @@
 <script>
 import axios from "axios";
 import { ElMessage } from "element-plus";
+import session from "../auth/session.cjs";
 
 import {
   Flag,
@@ -424,12 +425,12 @@ export default {
     },
     // 收藏方法
     handleCollect() {
-      const userString = localStorage.getItem("user");
-      if (!userString) {
+      const profile = session.getUserProfile(sessionStorage);
+      if (!profile) {
         ElMessage.warning("请先登录后再收藏！");
         return;
       }
-      this.user = JSON.parse(userString);
+      this.user = profile;
       if (!this.user?.id) {
         ElMessage.warning("用户信息异常，请重新登录！");
         return;

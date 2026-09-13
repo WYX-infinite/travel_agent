@@ -65,6 +65,7 @@ function createPlanningStreamController(options) {
     taskId,
     url = `/api/planning-tasks/${encodeURIComponent(taskId)}/events`,
     accessToken,
+    getAccessToken = () => accessToken,
     fetchImpl = globalThis.fetch,
     getTask,
     onEvent = () => {},
@@ -80,7 +81,7 @@ function createPlanningStreamController(options) {
   } = options || {}
 
   if (!taskId) throw new Error('taskId is required')
-  if (!accessToken) throw new Error('accessToken is required')
+  if (!getAccessToken()) throw new Error('accessToken is required')
   if (typeof fetchImpl !== 'function') throw new Error('fetch implementation is required')
   if (typeof getTask !== 'function') throw new Error('getTask is required')
 
@@ -167,10 +168,19 @@ function createPlanningStreamController(options) {
 
   async function connect() {
     if (stopped) return
+    const currentAccessToken = getAccessToken()
+    if (!currentAccessToken) {
+      const error = new Error('登录状态已失效，请重新登录。')
+      error.status = 401
+      error.code = 'AUTHENTICATION_REQUIRED'
+      onError(error)
+      terminate('disconnected')
+      return
+    }
     abortController = new AbortController()
     const headers = {
       Accept: 'text/event-stream',
-      Authorization: `Bearer ${accessToken}`
+      Authorization: `Bearer ${currentAccessToken}`
     }
     if (lastEventId !== '') headers['Last-Event-ID'] = lastEventId
     onConnectionState('connecting')

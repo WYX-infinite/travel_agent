@@ -145,6 +145,7 @@ import {
 } from '../api/planning'
 import { getTravelPreferences } from '../api/preferences'
 import plannerState from '../planning/plannerState.cjs'
+import session from '../auth/session.cjs'
 
 const {
   applySavedPreferences,
@@ -365,7 +366,8 @@ export default {
     },
     goToLogin(message) {
       ElMessage.warning(message || '请重新登录。')
-      this.$router.push({ path: '/login', query: { redirect: this.$route.fullPath } })
+      const target = session.authenticationRedirect(sessionStorage, this.$route.fullPath)
+      this.$router.replace(target)
     }
   }
 }

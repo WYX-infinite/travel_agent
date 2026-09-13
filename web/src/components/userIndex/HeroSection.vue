@@ -109,6 +109,7 @@
 import { DataAnalysis, Location, Place, Search } from "@element-plus/icons-vue";
 import userIndexImg from "@/assets/userIndex/background.png";
 import { regionData } from "element-china-area-data";
+import session from "../../auth/session.cjs";
 
 export default {
   name: "HeroSection",
@@ -196,18 +197,7 @@ export default {
   },
   methods: {
     initUserData() {
-      const savedUser = localStorage.getItem("user");
-      if (savedUser) {
-        try {
-          this.user = JSON.parse(savedUser);
-          if (typeof this.user !== "object" || !this.user.name) {
-            throw new Error("用户数据格式不正确");
-          }
-        } catch (error) {
-          console.error("解析用户数据失败:", error);
-          this.user = { name: "旅行者" };
-        }
-      }
+      this.user = session.getUserProfile(sessionStorage) || { name: "旅行者" };
     },
 
     initProvinceCityData() {
