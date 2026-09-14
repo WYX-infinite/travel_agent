@@ -24,6 +24,15 @@ class ConfigurationSafetyTest {
         assertThat(yaml.contains("${TRAVEL_JWT_SECRET:${travel.local-secrets.jwt-secret:}}"))
             .as("JWT secret must support environment and local fallback")
             .isTrue();
+        assertThat(yaml.contains("host: ${TRAVEL_REDIS_HOST:192.168.154.130}"))
+            .as("Redis host must support the authenticated local fallback")
+            .isTrue();
+        assertThat(yaml.contains("port: ${TRAVEL_REDIS_PORT:6379}"))
+            .as("Redis port must support environment and local fallback")
+            .isTrue();
+        assertThat(yaml.contains("password: ${TRAVEL_REDIS_PASSWORD:}"))
+            .as("Redis password must support an environment-only secret")
+            .isTrue();
         assertThat(yaml.contains("api-key: sk-"))
             .as("committed YAML must not contain a literal API key")
             .isFalse();

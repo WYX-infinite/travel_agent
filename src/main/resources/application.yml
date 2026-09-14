@@ -10,8 +10,9 @@ spring:
     password: ${TRAVEL_DB_PASSWORD:${travel.local-secrets.db-password:}}
   data:
     redis:
-      host: ${TRAVEL_REDIS_HOST:127.0.0.1}
+      host: ${TRAVEL_REDIS_HOST:192.168.154.130}
       port: ${TRAVEL_REDIS_PORT:6379}
+      password: ${TRAVEL_REDIS_PASSWORD:}
 
 server:
   port: 8181
