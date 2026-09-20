@@ -5,6 +5,7 @@ import com.wyx.travelagent.planning.memory.*;
 import com.wyx.travelagent.planning.model.*;
 import com.wyx.travelagent.planning.validation.RequirementValidator;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.Primary;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
@@ -20,6 +21,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class MybatisPlanningTaskRepositoryTest {
+    @Test void productionRepositoryIsTheDefaultPlanningTaskRepository() {
+        assertThat(MybatisPlanningTaskRepository.class).hasAnnotation(Primary.class);
+    }
+
     @Test void locksUserChecksActiveThenInsertsInOneTransaction() {
         PlanningTaskMapper mapper = mock(PlanningTaskMapper.class);
         when(mapper.lockUser(7)).thenReturn(7); when(mapper.countActive(7)).thenReturn(0);

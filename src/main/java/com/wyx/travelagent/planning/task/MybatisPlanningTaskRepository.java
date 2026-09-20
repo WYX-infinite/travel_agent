@@ -2,6 +2,7 @@ package com.wyx.travelagent.planning.task;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wyx.travelagent.planning.model.ResolvedTravelRequirement;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -15,6 +16,7 @@ import java.util.Optional;
  * 它实现任务十四持久化；不负责 Controller、SSE、任务十三编排或建表迁移。
  */
 @Repository
+@Primary
 public class MybatisPlanningTaskRepository implements PlanningTaskRepository {
     private final PlanningTaskMapper mapper;
     private final TransactionTemplate transactions;

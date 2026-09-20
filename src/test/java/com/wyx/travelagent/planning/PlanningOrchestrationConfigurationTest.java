@@ -3,6 +3,7 @@ package com.wyx.travelagent.planning;
 import com.wyx.travelagent.planning.metrics.PlanMetricsCalculator;
 import com.wyx.travelagent.planning.preparation.PlanningPreparationGateway;
 import com.wyx.travelagent.planning.repair.ItineraryRepairer;
+import com.wyx.travelagent.planning.task.PlanningTaskRepository;
 import com.wyx.travelagent.trace.PlanningTraceService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,5 +26,11 @@ class PlanningOrchestrationConfigurationTest {
         assertThat(context.getBean(PlanningPreparationGateway.class)).isNotNull();
         assertThat(context.getBean(PlanningTraceService.class)).isNotNull();
         assertThat(context.getBean(PlanMetricsCalculator.class)).isNotNull();
+    }
+
+    @Test
+    void planningTaskRepositoryHasOnlyTheMybatisProductionBean() {
+        assertThat(context.getBeansOfType(PlanningTaskRepository.class))
+                .containsOnlyKeys("mybatisPlanningTaskRepository");
     }
 }
