@@ -231,6 +231,22 @@ class LangChain4jKnowledgeIndexTest {
     }
 
     @Test
+    void rebuildSplitsEmbeddingRequestsAtConfiguredBatchBoundary() {
+        DeterministicFakeEmbeddingModel model = new DeterministicFakeEmbeddingModel(MODEL, 4);
+        model.rejectBatchesLargerThan(10);
+        LangChain4jKnowledgeIndex index = new LangChain4jKnowledgeIndex(
+                model, MODEL, new KnowledgeIndexProperties(formalFile(), 10));
+        List<KnowledgeChunk> chunks = java.util.stream.LongStream.rangeClosed(1, 21)
+                .mapToObj(id -> chunk(id, 1_000 + id, 0, "批量切片-" + id))
+                .toList();
+
+        index.rebuild(chunks);
+
+        assertThat(model.embeddedBatchSizes()).containsExactly(10, 10, 1);
+        assertThat(index.search(new KnowledgeQuery("批量切片"), 21)).hasSize(21);
+    }
+
+    @Test
     void modelMismatchRejectsIncrementalWriteButAllowsFullRebuild() {
         KnowledgeChunk original = chunk(31, 301, 0, "旧模型正文");
         index(new DeterministicFakeEmbeddingModel("old-model", 4)).addAll(List.of(original));

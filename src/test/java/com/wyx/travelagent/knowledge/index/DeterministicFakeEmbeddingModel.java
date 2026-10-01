@@ -20,6 +20,8 @@ public final class DeterministicFakeEmbeddingModel implements EmbeddingModel {
     private final String modelName;
     private final int dimension;
     private final List<String> embeddedTexts = new CopyOnWriteArrayList<>();
+    private final List<Integer> embeddedBatchSizes = new CopyOnWriteArrayList<>();
+    private int maximumBatchSize = Integer.MAX_VALUE;
     private String failureText;
     private String blockingText;
     private CountDownLatch blockingEntered;
@@ -45,8 +47,23 @@ public final class DeterministicFakeEmbeddingModel implements EmbeddingModel {
         return List.copyOf(embeddedTexts);
     }
 
+    public void rejectBatchesLargerThan(int maximumBatchSize) {
+        if (maximumBatchSize < 1) {
+            throw new IllegalArgumentException("maximumBatchSize must be positive");
+        }
+        this.maximumBatchSize = maximumBatchSize;
+    }
+
+    public List<Integer> embeddedBatchSizes() {
+        return List.copyOf(embeddedBatchSizes);
+    }
+
     @Override
     public Response<List<Embedding>> embedAll(List<TextSegment> segments) {
+        embeddedBatchSizes.add(segments.size());
+        if (segments.size() > maximumBatchSize) {
+            throw new IllegalArgumentException("simulated embedding batch limit exceeded");
+        }
         List<Embedding> embeddings = new java.util.ArrayList<>(segments.size());
         for (TextSegment segment : segments) {
             String text = segment.text();

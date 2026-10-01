@@ -300,12 +300,23 @@ public final class LangChain4jKnowledgeIndex implements KnowledgeIngestionIndex 
         List<TextSegment> segments = stable.stream()
                 .map(chunk -> TextSegment.from(chunk.content()))
                 .toList();
-        final List<Embedding> embeddings;
-        try {
-            embeddings = embeddingModel.embedAll(segments).content();
-        } catch (RuntimeException exception) {
-            throw new KnowledgeIndexException(
-                    "KNOWLEDGE_EMBEDDING_FAILED", "knowledge embeddings could not be generated", exception);
+        List<Embedding> embeddings = new ArrayList<>(segments.size());
+        int batchSize = properties.embeddingBatchSize();
+        for (int start = 0; start < segments.size(); start += batchSize) {
+            int end = Math.min(start + batchSize, segments.size());
+            List<TextSegment> batchSegments = segments.subList(start, end);
+            final List<Embedding> batchEmbeddings;
+            try {
+                batchEmbeddings = embeddingModel.embedAll(batchSegments).content();
+            } catch (RuntimeException exception) {
+                throw new KnowledgeIndexException(
+                        "KNOWLEDGE_EMBEDDING_FAILED", "knowledge embeddings could not be generated", exception);
+            }
+            if (batchEmbeddings == null || batchEmbeddings.size() != batchSegments.size()) {
+                throw new KnowledgeIndexException(
+                        "KNOWLEDGE_EMBEDDING_FAILED", "knowledge embedding response size is invalid");
+            }
+            embeddings.addAll(batchEmbeddings);
         }
         if (embeddings == null || embeddings.size() != stable.size()) {
             throw new KnowledgeIndexException(
