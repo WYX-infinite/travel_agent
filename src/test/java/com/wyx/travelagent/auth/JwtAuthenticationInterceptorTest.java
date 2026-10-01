@@ -147,6 +147,18 @@ class JwtAuthenticationInterceptorTest {
     }
 
     @Test
+    void corsPreflightIsAllowedWithoutAuthentication() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "OPTIONS", "/api/admin/knowledge-documents/42/status");
+        request.setRequestURI("/api/admin/knowledge-documents/42/status");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        assertThat(interceptor.preHandle(request, response, new Object())).isTrue();
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(CurrentUserContext.get()).isEmpty();
+    }
+
+    @Test
     void loginEndpointRemainsPublicWithServletMappingPrefix() throws Exception {
         MockHttpServletRequest request = request("/travel/api/auth/login", null);
         request.setServletPath("/travel");

@@ -2,6 +2,7 @@ package com.wyx.travelagent.auth;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.AsyncHandlerInterceptor;
@@ -24,6 +25,9 @@ public class JwtAuthenticationInterceptor implements AsyncHandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws IOException {
         CurrentUserContext.clear();
+        if (HttpMethod.OPTIONS.matches(request.getMethod())) {
+            return true;
+        }
         String requestPath = UrlPathHelper.defaultInstance.getLookupPathForRequest(request);
         if (isPublicAuthenticationEndpoint(requestPath)) {
             return true;
