@@ -11,20 +11,34 @@ import java.nio.file.Path;
  * 本配置不读取 Embedding 密钥，也不负责数据库、上传目录或任务十检索策略。
  *
  * @param indexFile 正式 JSON 索引文件；为空时使用项目默认路径
+ * @param embeddingBatchSize 单次提交给 Embedding 服务的最大文本切片数
  */
 @ConfigurationProperties("travel.knowledge")
-public record KnowledgeIndexProperties(Path indexFile) {
+public record KnowledgeIndexProperties(
+        Path indexFile,
+        @org.springframework.boot.context.properties.bind.DefaultValue("10")
+        int embeddingBatchSize) {
     private static final Path DEFAULT_INDEX_FILE =
             Path.of("data", "index", "knowledge-index.json");
+    private static final int DEFAULT_EMBEDDING_BATCH_SIZE = 10;
+
+    public KnowledgeIndexProperties(Path indexFile) {
+        this(indexFile, DEFAULT_EMBEDDING_BATCH_SIZE);
+    }
 
     /**
      * 应用安全默认值并规范化路径。
      */
+    @org.springframework.boot.context.properties.bind.ConstructorBinding
     public KnowledgeIndexProperties {
         if (indexFile == null) {
             indexFile = DEFAULT_INDEX_FILE;
         }
         indexFile = indexFile.normalize();
+        if (embeddingBatchSize < 1) {
+            throw new IllegalArgumentException(
+                    "travel.knowledge.embedding-batch-size must be greater than zero");
+        }
     }
 
     /**
