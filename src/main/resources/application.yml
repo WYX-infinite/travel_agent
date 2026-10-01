@@ -12,7 +12,7 @@ spring:
     redis:
       host: ${TRAVEL_REDIS_HOST:192.168.154.130}
       port: ${TRAVEL_REDIS_PORT:6379}
-      password: ${TRAVEL_REDIS_PASSWORD:}
+      password: ${TRAVEL_REDIS_PASSWORD:123321}
 
 server:
   port: 8181
