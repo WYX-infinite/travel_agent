@@ -1240,19 +1240,19 @@ git commit -m "feat: add plan history preference settings and knowledge administ
 - 新建： `travel_agent/src/test/java/com/wyx/travelagent/evaluation/EvaluationReportWriter.java`
 - 新建： `travel_agent/docs/evaluation-method.md`
 
-- [ ] **步骤 1：添加 30～50 条明确评测用例**
+- [x] **步骤 1：添加 30～50 条明确评测用例**
 
 用例同时包含合法方案以及预算过低、日期缺失、亲子、老人、雨天户外活动、POI 距离过远、知识库为空、数据源错误、伪造 POI ID、伪造 chunkId、非法 JSON、两次修正失败、偏好命中、显式输入覆盖偏好、关闭记忆、清空记忆、用户偏好隔离、偏好存储不可用、最大五日/50 POI/5 知识切片/500 Token 偏好分区的边界上下文，以及必需内容超过预算等场景。每条用例都明确声明预期状态和必须出现的错误码。
 
-- [ ] **步骤 2：优先实现确定性离线评测**
+- [x] **步骤 2：优先实现确定性离线评测**
 
 CI 使用固定 fixture、假数据源和假模型，计算虚构 POI 拦截率、引用覆盖率、路线覆盖率、规则通过率、修正成功率、平均修正次数、偏好合并正确率、用户隔离、缓存行为、任务状态准确率和上下文裁剪确定性。真实冒烟测试额外记录估算输入 Token 与服务端实际 input Token 的偏差，任何简历数据都只能引用实际报告。
 
-- [ ] **步骤 3：增加需单独启动的真实冒烟测试 Profile**
+- [x] **步骤 3：增加需单独启动的真实冒烟测试 Profile**
 
 真实联调测试必须显式启用真实测试 Profile，并通过部署环境变量或被 Git 忽略的 `application-local.yml` 提供凭据；普通 `mvn test` 永远不运行这组测试。它只对文档中声明的小规模用例调用 DashScope、高德、Open-Meteo、MySQL 和 Redis。
 
-- [ ] **步骤 4：运行确定性评测**
+- [x] **步骤 4：运行确定性评测**
 
 ```powershell
 .\mvnw.cmd -Dtest=TravelAgentEvaluationTest test
@@ -1260,7 +1260,7 @@ CI 使用固定 fixture、假数据源和假模型，计算虚构 POI 拦截率�
 
 预期：在 `target/evaluation/` 下生成报告，所有用例的预期状态和错误码断言均通过。
 
-- [ ] **步骤 5：提交变更**
+- [x] **步骤 5：提交变更**
 
 ```powershell
 git add src/test docs
