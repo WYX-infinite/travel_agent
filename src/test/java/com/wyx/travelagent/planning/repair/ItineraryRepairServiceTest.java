@@ -11,11 +11,16 @@ import com.wyx.travelagent.planning.memory.AppliedPreferenceSnapshot;
 import com.wyx.travelagent.planning.memory.PreferenceReadStatus;
 import com.wyx.travelagent.planning.memory.PreferenceSource;
 import com.wyx.travelagent.planning.model.CompanionType;
+import com.wyx.travelagent.planning.model.CostEstimate;
+import com.wyx.travelagent.planning.model.CostEvidenceType;
+import com.wyx.travelagent.planning.model.CostFact;
 import com.wyx.travelagent.planning.model.ItineraryDay;
+import com.wyx.travelagent.planning.model.ItineraryItem;
 import com.wyx.travelagent.planning.model.ItineraryPlan;
 import com.wyx.travelagent.planning.model.ItineraryValidationFacts;
 import com.wyx.travelagent.planning.model.OpeningHoursFact;
 import com.wyx.travelagent.planning.model.ResolvedTravelRequirement;
+import com.wyx.travelagent.planning.model.RouteFact;
 import com.wyx.travelagent.planning.model.TravelPlanningContext;
 import com.wyx.travelagent.planning.model.TravelRequirement;
 import com.wyx.travelagent.planning.model.ValidationPoiFact;
@@ -24,10 +29,14 @@ import com.wyx.travelagent.planning.validation.ValidationIssue;
 import com.wyx.travelagent.tools.model.CoordinateSystem;
 import com.wyx.travelagent.tools.model.GeoPoint;
 import com.wyx.travelagent.tools.model.PlaceCandidate;
+import com.wyx.travelagent.tools.model.TravelMode;
+import com.wyx.travelagent.tools.model.TravelSegment;
+import com.wyx.travelagent.tools.model.WeatherResult;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -93,6 +102,25 @@ class ItineraryRepairServiceTest {
         assertThat(second.allowedPoiIds()).containsExactly("poi-1");
     }
 
+    @Test
+    void repairKeepsUnchangedPlanPoisAllowedButFiltersUnrelatedDetailedFacts() {
+        CapturingGenerator generator = new CapturingGenerator();
+        ItineraryRepairService service = new ItineraryRepairService(assembler(), generator);
+
+        service.repair(request(multiDayPlan(), issue("DAILY_INTENSITY_EXCEEDED")),
+                contextWithDetailedFacts());
+
+        PromptContext repairContext = generator.contexts.getFirst();
+        assertThat(repairContext.allowedPoiIds()).containsExactly("poi-1", "poi-2");
+        String toolFacts = String.join("\n", repairContext.toolFactEntries());
+        assertThat(toolFacts)
+                .contains("\"poiId\":\"poi-1\"", "\"poiId\":\"poi-2\"",
+                        "\"distanceMeters\":111", "\"minimum\":\"11\"",
+                        "\"date\":\"2026-10-01\"")
+                .doesNotContain("\"distanceMeters\":222", "\"minimum\":\"22\"",
+                        "\"date\":\"2026-10-02\"");
+    }
+
     private static RepairRequest request(ItineraryPlan previous, ValidationIssue issue) {
         return new RepairRequest(requirement(), previous, List.of(issue),
                 List.of(place(), otherPlace()), List.of());
@@ -115,6 +143,33 @@ class ItineraryRepairServiceTest {
         return new TravelPlanningContext(new ResolvedTravelRequirement(requirement(), snapshot), facts);
     }
 
+    private static TravelPlanningContext contextWithDetailedFacts() {
+        AppliedPreferenceSnapshot snapshot = new AppliedPreferenceSnapshot(Set.of(), null, null, null,
+                PreferenceSource.NOT_PROVIDED, PreferenceSource.NOT_PROVIDED,
+                PreferenceSource.NOT_PROVIDED, PreferenceSource.NOT_PROVIDED,
+                false, PreferenceReadStatus.NOT_REQUESTED);
+        ItineraryValidationFacts facts = new ItineraryValidationFacts(List.of(
+                new ValidationPoiFact(place(), 0, true, false, OpeningHoursFact.unknown()),
+                new ValidationPoiFact(otherPlace(), 1, false, false, OpeningHoursFact.unknown())),
+                List.of(
+                        new RouteFact("poi-1", "poi-1",
+                                new TravelSegment(TravelMode.WALKING, 111L, 11L, true)),
+                        new RouteFact("poi-2", "poi-2",
+                                new TravelSegment(TravelMode.WALKING, 222L, 22L, true))),
+                List.of(
+                        new CostFact("poi-1", CostEstimate.known(
+                                BigDecimal.valueOf(11), BigDecimal.valueOf(11),
+                                CostEvidenceType.FACT, null)),
+                        new CostFact("poi-2", CostEstimate.known(
+                                BigDecimal.valueOf(22), BigDecimal.valueOf(22),
+                                CostEvidenceType.FACT, null))),
+                new WeatherResult(List.of(
+                        new WeatherResult.DailyForecast(date(), 10, 20, 10, 1),
+                        new WeatherResult.DailyForecast(date().plusDays(1), 11, 21, 20, 2))),
+                0, List.of());
+        return new TravelPlanningContext(new ResolvedTravelRequirement(requirement(), snapshot), facts);
+    }
+
     private static PromptContextAssembler assembler() {
         return new PromptContextAssembler(new ContextBudgetProperties(
                 12000, 9000, 2000, 1000, 3000, 4000, 1000, 10, 5),
@@ -122,13 +177,25 @@ class ItineraryRepairServiceTest {
     }
 
     private static TravelRequirement requirement() {
-        return new TravelRequirement("杭州", date(), date(), 1, BigDecimal.valueOf(1000),
+        return new TravelRequirement("杭州", date(), date().plusDays(1), 1, BigDecimal.valueOf(1000),
                 CompanionType.SOLO, Set.of(), null, null, null, null);
     }
 
     private static ItineraryPlan plan() {
         return new ItineraryPlan("杭州", date(), date(), List.of(new ItineraryDay(date(), List.of())),
                 BigDecimal.ZERO);
+    }
+
+    private static ItineraryPlan multiDayPlan() {
+        return new ItineraryPlan("杭州", date(), date().plusDays(1), List.of(
+                new ItineraryDay(date(), List.of(item("poi-1", "西湖"))),
+                new ItineraryDay(date().plusDays(1), List.of(item("poi-2", "未受影响景点")))),
+                BigDecimal.ZERO);
+    }
+
+    private static ItineraryItem item(String poiId, String name) {
+        return new ItineraryItem(LocalTime.of(9, 0), LocalTime.of(10, 0), poiId, name,
+                null, CostEstimate.missing(), null);
     }
 
     private static PlaceCandidate place() {

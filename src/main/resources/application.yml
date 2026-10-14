@@ -29,6 +29,8 @@ langchain4j:
       api-key: ${DASHSCOPE_API_KEY:${travel.local-secrets.dashscope-api-key:}}
       model-name: ${TRAVEL_CHAT_MODEL:${travel.ai.chat-model:qwen-plus}}
       max-tokens: ${TRAVEL_MODEL_MAX_OUTPUT_TOKENS:4000}
+      timeout: ${TRAVEL_CHAT_MODEL_TIMEOUT:5m}
+      max-retries: ${TRAVEL_CHAT_MODEL_MAX_RETRIES:2}
       log-requests: false
       log-responses: false
     embedding-model:
@@ -40,6 +42,8 @@ langchain4j:
       api-key: ${DASHSCOPE_API_KEY:${travel.local-secrets.dashscope-api-key:}}
       model-name: ${TRAVEL_CHAT_MODEL:${travel.ai.chat-model:qwen-plus}}
       max-tokens: ${TRAVEL_MODEL_MAX_OUTPUT_TOKENS:4000}
+      timeout: ${TRAVEL_CHAT_MODEL_TIMEOUT:5m}
+      max-retries: ${TRAVEL_CHAT_MODEL_MAX_RETRIES:2}
       log-requests: false
       log-responses: false
 

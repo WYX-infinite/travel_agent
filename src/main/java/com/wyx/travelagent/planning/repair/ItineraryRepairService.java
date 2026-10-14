@@ -68,7 +68,8 @@ public final class ItineraryRepairService implements ItineraryRepairer {
 
     /**
      * 组装当前一轮的最小事实并调用模型一次。
-     * 仅保留当前问题日期的天气、白名单 POI 相关路线/费用和本轮允许引用；不会接收或累积旧 Prompt、原始回复或 Trace。
+     * 保留上一版完整行程使用的 POI 白名单，但只携带当前问题相关的路线、费用、天气和引用；
+     * 不会接收或累积旧 Prompt、原始回复或 Trace。
      *
      * @param request 非空结构化修正请求
      * @param originalContext 非空可信原始上下文；其中需求必须与请求的不可变需求一致
@@ -111,6 +112,14 @@ public final class ItineraryRepairService implements ItineraryRepairer {
                 .map(item -> item.poiId())
                 .forEach(affectedPoiIds::add);
 
+        // 修复 Prompt 要求返回完整替换计划，因此白名单必须允许原计划中未受影响的 POI
+        // 原样保留；详细路线、费用和天气仍只围绕当前问题裁剪。
+        Set<String> allowedPoiIds = new HashSet<>(affectedPoiIds);
+        request.previousPlan().days().stream()
+                .flatMap(day -> day.items().stream())
+                .map(item -> item.poiId())
+                .forEach(allowedPoiIds::add);
+
         var originalPlaces = original.places().stream().collect(Collectors.toMap(
                 fact -> fact.place().poiId(), Function.identity()));
         if (request.allowedPlaces().stream().anyMatch(place -> {
@@ -120,7 +129,7 @@ public final class ItineraryRepairService implements ItineraryRepairer {
             throw new IllegalArgumentException("REPAIR_POI_OUTSIDE_ORIGINAL_CONTEXT");
         }
         List<ValidationPoiFact> places = request.allowedPlaces().stream()
-                .filter(place -> affectedPoiIds.contains(place.poiId()))
+                .filter(place -> allowedPoiIds.contains(place.poiId()))
                 .map(place -> {
             ValidationPoiFact fact = originalPlaces.get(place.poiId());
             if (fact == null || !fact.place().equals(place)) {
@@ -128,13 +137,12 @@ public final class ItineraryRepairService implements ItineraryRepairer {
             }
             return fact;
         }).toList();
-        Set<String> poiIds = places.stream().map(fact -> fact.place().poiId())
-                .collect(Collectors.toUnmodifiableSet());
         List<RouteFact> routes = original.routes().stream()
-                .filter(route -> poiIds.contains(route.fromPoiId()) && poiIds.contains(route.toPoiId()))
+                .filter(route -> affectedPoiIds.contains(route.fromPoiId())
+                        && affectedPoiIds.contains(route.toPoiId()))
                 .toList();
         List<CostFact> costs = original.costs().stream()
-                .filter(cost -> poiIds.contains(cost.poiId()))
+                .filter(cost -> affectedPoiIds.contains(cost.poiId()))
                 .toList();
 
         Set<Long> originalReferenceIds = original.knowledgeReferences().stream()
