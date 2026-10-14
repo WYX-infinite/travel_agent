@@ -1196,23 +1196,23 @@ git commit -m "feat: add travel planner and sourced itinerary views"
 - 修改： `travel_agent/web/src/plugins/axios.js`
 - 测试： `travel_agent/web/tests/admin-auth-contract.test.cjs`
 
-- [ ] **步骤 1：编写角色和资源所有权界面测试**
+- [x] **步骤 1：编写角色和资源所有权界面测试**
 
 断言登录成功后只把 `accessToken` 和 `UserProfile` 写入 `sessionStorage`，不保存密码或偏好副本；Axios 请求拦截器统一附加 `Authorization: Bearer <token>`；偏好设置要求登录；管理路由要求 `role=ADMIN`；普通用户看不到管理入口；后端 401 时清除登录状态并跳转登录页，403 时保留登录状态并显示无权限提示。
 
-- [ ] **步骤 2：实现“我的行程”页面**
+- [x] **步骤 2：实现“我的行程”页面**
 
 列表展示状态、城市、日期、当前版本、创建时间、覆盖率指标和重新规划操作。版本比较必须展示校验结果变化，不能只显示原始 JSON。
 
-- [ ] **步骤 3：实现偏好设置页面**
+- [x] **步骤 3：实现偏好设置页面**
 
 展示并编辑兴趣、节奏、常用交通方式和住宿位置偏好；说明不会保存日期、预算、同行信息、特殊要求或聊天记录。保存前由用户主动确认，清空操作二次确认并调用 DELETE；成功后刷新服务端数据，不把偏好长期复制到 `localStorage` 或 `sessionStorage`。
 
-- [ ] **步骤 4：实现知识库管理页面**
+- [x] **步骤 4：实现知识库管理页面**
 
 文件、标题、城市、发布机构、来源 URL、发布日期和文档类型均为必填项。页面展示 `UPLOADED`、`INDEXING`、`ACTIVE`、`DISABLED`、`FAILED` 状态，以及有界切片预览、启停、删除和重建索引操作；只有 ACTIVE 与 DISABLED 可互相切换，删除前必须先停用，管理员权限最终由后端判定。
 
-- [ ] **步骤 5：分别完成前端验证与后端契约确认**
+- [x] **步骤 5：分别完成前端验证与后端契约确认**
 
 ```powershell
 npm test
@@ -1221,7 +1221,7 @@ npm run build
 
 Codex 在 `web` 目录运行上述前端命令。用户在仓库根目录运行 `.\mvnw.cmd test`，并确认任务、行程、知识库和认证接口仍符合 1.3 节契约。任一侧失败都不能进入提交步骤。
 
-- [ ] **步骤 6：提交变更**
+- [x] **步骤 6：提交变更**
 
 ```powershell
 git add web
