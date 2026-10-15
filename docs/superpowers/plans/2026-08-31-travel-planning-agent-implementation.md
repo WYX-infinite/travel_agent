@@ -1281,7 +1281,7 @@ git commit -m "test: add reproducible travel agent evaluation"
 - 新建： `travel_agent/docs/demo-script.md`
 - 新建： `travel_agent/docs/resume-notes.md`
 
-- [ ] **步骤 1：运行完整后端验证**
+- [x] **步骤 1：运行完整后端验证**
 
 ```powershell
 .\mvnw.cmd clean test
@@ -1290,7 +1290,7 @@ git commit -m "test: add reproducible travel agent evaluation"
 
 预期：两条命令退出码均为 0，核心测试没有被跳过。
 
-- [ ] **步骤 2：运行完整前端验证**
+- [x] **步骤 2：运行完整前端验证**
 
 ```powershell
 npm ci
@@ -1300,23 +1300,27 @@ npm run build
 
 在 `travel_agent\web` 中运行。预期：依赖安装、测试和生产构建全部成功。
 
-- [ ] **步骤 3：执行文档规定的真实冒烟测试**
+- [x] **步骤 3：执行文档规定的真实冒烟测试**
+
+状态（2026-10-15）：经用户两次明确授权完成最终重跑，Failsafe 1/1 通过；两个真实规划场景均为 `COMPLETED`，共 3 次模型调用、1 次自动修正、2 条 DOCUMENT 引用，POI/路线/天气调用为 3/1/1。Redis 不可达且缓存命中为 0，按设计回源；场景仍有费用证据、费用完整性、开放时间和路线未验证 warning。受控路线失败来自 loopback 注入，不表示高德真实故障。
 
 使用一个杭州两日游请求、一个路线数据源失败场景、一条文档引用，以及一个需要自动修正的方案。记录真实调用次数、耗时、版本、引用、缓存命中和最终状态，禁止记录密钥。
 
 - [ ] **步骤 4：使用 Apifox 完成契约与业务流程测试**
 
+状态（2026-10-15）：OpenAPI、四条流程、断言和报告模板已完成；当前环境没有可控的 Apifox 项目/客户端会话，因此实际导入与运行仍待用户执行。
+
 把 `docs/openapi/travel-agent.yaml` 导入 Apifox，至少建立四个场景：`验证码→登录→查询当前用户`、`管理员登录→上传文档→等待ACTIVE→预览切片`、`用户登录→创建规划→查询状态→读取行程`、`普通用户访问管理接口返回403`。为状态码、`ApiResponse`、必填字段、枚举、Token 传递和最终任务状态添加断言，并保存实际运行报告。Swagger UI 只作为可选的交互文档，不作为这组回归测试的替代品。
 
-- [ ] **步骤 5：根据实际行为编写项目文档**
+- [x] **步骤 5：根据实际行为编写项目文档**
 
 README 必须包含无 Docker 启动方式、本地忽略配置与部署环境变量的使用边界、数据来源边界、架构、规划流程、结构化偏好记忆及隐私边界、上下文预算与裁剪顺序、故障行为、截图、评测方法、真实评测结果、已知限制，以及四个参考仓库和许可证说明。
 
-- [ ] **步骤 6：只使用真实结果编写简历描述**
+- [x] **步骤 6：只使用真实结果编写简历描述**
 
 写入真实测试用例数量和实测指标，禁止编造成功率。将 RAG 证据、受控工具、Java 校验与修正、Trace 和评测等核心 AI 贡献，与普通 CRUD 和界面工作分开描述。
 
-- [ ] **步骤 7：检查仓库整洁与密钥泄露**
+- [x] **步骤 7：检查仓库整洁与密钥泄露**
 
 ```powershell
 git status --short
@@ -1325,7 +1329,9 @@ git ls-files | Select-String -Pattern 'application-local|\.env$|target/|node_mod
 
 预期：最终提交前工作区干净，第二条命令没有找到被跟踪的密钥配置或生成目录。
 
-- [ ] **步骤 8：提交达到发布条件的文档**
+执行说明（2026-10-15）：未跟踪的 `data/`、两份既有计划文档和 `src/main/java/com/wyx/BCryptGenerator.java` 属于用户已有文件，本任务不修改、不暂存；检查命中的 `application-local.yml.example` 是无真实值的安全模板。任务 18 文件未发现密钥模式，也未包含 `application-local.yml` 中的任何实际配置值。
+
+- [x] **步骤 8：提交达到发布条件的文档**
 
 ```powershell
 git add README.md docs

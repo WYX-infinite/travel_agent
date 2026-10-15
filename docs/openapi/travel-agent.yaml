@@ -1,0 +1,938 @@
+openapi: 3.0.3
+info:
+  title: Multi-constraint Travel Planning Agent API
+  version: 1.0.0
+  description: |
+    Contract for the implemented Spring MVC API. Except captcha and login,
+    every /api endpoint requires a Bearer JWT. /api/admin endpoints require ADMIN.
+servers:
+  - url: http://localhost:8181
+    description: Local backend
+tags:
+  - name: Auth
+  - name: Preferences
+  - name: Planning Tasks
+  - name: Plans
+  - name: Admin Knowledge
+paths:
+  /api/auth/captcha:
+    get:
+      tags: [Auth]
+      summary: Create a single-use captcha
+      operationId: getCaptcha
+      security: []
+      responses:
+        '200':
+          description: Captcha created; response is not cacheable
+          headers:
+            Cache-Control:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CaptchaApiResponse' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Authenticate with username, password and captcha
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginApiResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Read the current user profile
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfileApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/user/travel-preferences:
+    get:
+      tags: [Preferences]
+      summary: Read the current user's structured travel preferences
+      operationId: getTravelPreferences
+      responses:
+        '200':
+          description: Preferences; an absent record is represented by empty/null fields
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenceApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/ServerError' }
+    put:
+      tags: [Preferences]
+      summary: Replace all structured travel preferences
+      operationId: replaceTravelPreferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserTravelPreferenceRequest' }
+      responses:
+        '200':
+          description: Replaced
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PreferenceApiResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/ServerError' }
+    delete:
+      tags: [Preferences]
+      summary: Idempotently clear the current user's preferences
+      operationId: clearTravelPreferences
+      responses:
+        '200':
+          description: Cleared
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmptySuccessResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/planning-tasks:
+    post:
+      tags: [Planning Tasks]
+      summary: Create an asynchronous planning task
+      operationId: createPlanningTask
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TravelPlanningRequest' }
+      responses:
+        '202':
+          description: Persisted PENDING task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanningTaskApiResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: The user already has an active task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: The bounded planning queue is full
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/planning-tasks/{taskId}:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Planning Tasks]
+      summary: Read a task owned by the current user
+      operationId: getPlanningTask
+      responses:
+        '200':
+          description: Latest task snapshot
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanningTaskApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/planning-tasks/{taskId}/events:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+    get:
+      tags: [Planning Tasks]
+      summary: Replay and stream persisted planning progress
+      operationId: streamPlanningTaskEvents
+      parameters:
+        - in: header
+          name: Last-Event-ID
+          required: false
+          description: Non-negative exclusive event cursor
+          schema: { type: string, pattern: '^[0-9]+$' }
+      responses:
+        '200':
+          description: Server-sent event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE frames whose data is a PlanningSseEvent JSON object
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503':
+          description: SSE connection limit reached
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/plans:
+    get:
+      tags: [Plans]
+      summary: List plans owned by the current user
+      operationId: listPlans
+      responses:
+        '200':
+          description: Plans
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanListApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/plans/{planId}:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    get:
+      tags: [Plans]
+      summary: Read the current plan detail
+      operationId: getPlan
+      responses:
+        '200':
+          description: Plan detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanDetailApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/plans/{planId}/versions:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    get:
+      tags: [Plans]
+      summary: List complete versions in ascending version order
+      operationId: getPlanVersions
+      responses:
+        '200':
+          description: Versions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanVersionListApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/plans/{planId}/replan:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    post:
+      tags: [Plans]
+      summary: Create a new task from the original request and current preferences
+      operationId: replan
+      responses:
+        '202':
+          description: New PENDING task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanningTaskApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The user already has an active task
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '503':
+          description: The bounded planning queue is full
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/admin/knowledge-documents:
+    get:
+      tags: [Admin Knowledge]
+      summary: List knowledge documents
+      operationId: listKnowledgeDocuments
+      responses:
+        '200':
+          description: Document summaries
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeDocumentListApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Admin Knowledge]
+      summary: Upload, parse, chunk, embed and publish a knowledge document
+      operationId: uploadKnowledgeDocument
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, title, city, publisher, sourceUrl, publishedAt, documentType]
+              properties:
+                file: { type: string, format: binary }
+                title: { type: string }
+                city: { type: string }
+                publisher: { type: string }
+                sourceUrl: { type: string, format: uri }
+                publishedAt: { type: string, format: date }
+                documentType: { $ref: '#/components/schemas/KnowledgeDocumentType' }
+      responses:
+        '201':
+          description: Fully ingested ACTIVE document
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeUploadApiResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Duplicate or conflicting document state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/admin/knowledge-documents/reindex:
+    post:
+      tags: [Admin Knowledge]
+      summary: Rebuild the local index from ACTIVE database documents
+      operationId: reindexKnowledgeDocuments
+      responses:
+        '200':
+          description: Rebuilt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeReindexApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/ServerError' }
+  /api/admin/knowledge-documents/{documentId}:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [Admin Knowledge]
+      summary: Read knowledge document detail
+      operationId: getKnowledgeDocument
+      responses:
+        '200':
+          description: Detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeDetailApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Admin Knowledge]
+      summary: Delete an allowed document, its chunks and managed upload file
+      operationId: deleteKnowledgeDocument
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeDeletionApiResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Current document state cannot be deleted
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /api/admin/knowledge-documents/{documentId}/chunks:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    get:
+      tags: [Admin Knowledge]
+      summary: Preview a bounded page of chunks
+      operationId: getKnowledgeDocumentChunks
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: Chunk page
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeChunkPageApiResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/admin/knowledge-documents/{documentId}/status:
+    parameters:
+      - $ref: '#/components/parameters/DocumentId'
+    patch:
+      tags: [Admin Knowledge]
+      summary: Activate or disable a knowledge document
+      operationId: changeKnowledgeDocumentStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [ACTIVE, DISABLED]
+      responses:
+        '200':
+          description: Updated detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KnowledgeDetailApiResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Invalid state transition
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TaskId:
+      in: path
+      name: taskId
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+    PlanId:
+      in: path
+      name: planId
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+    DocumentId:
+      in: path
+      name: documentId
+      required: true
+      schema: { type: integer, format: int64, minimum: 1 }
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Missing, invalid or expired authentication
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Administrator role required
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Resource absent or not owned by the current user
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ServerError:
+      description: Sanitized server or storage failure
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        fields:
+          type: object
+          nullable: true
+          additionalProperties: { type: string }
+    ErrorResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [false] }
+        data: { nullable: true }
+        error: { $ref: '#/components/schemas/ApiError' }
+    EmptySuccessResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { nullable: true }
+        error: { nullable: true }
+    CaptchaApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/CaptchaResponse' }
+        error: { nullable: true }
+    LoginApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/LoginResponse' }
+        error: { nullable: true }
+    UserProfileApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/UserProfile' }
+        error: { nullable: true }
+    PreferenceApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/UserTravelPreferenceResponse' }
+        error: { nullable: true }
+    PlanningTaskApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/PlanningTaskResponse' }
+        error: { nullable: true }
+    PlanListApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/PlanSummaryResponse' }
+        error: { nullable: true }
+    PlanDetailApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/PlanDetailResponse' }
+        error: { nullable: true }
+    PlanVersionListApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/PlanVersionResponse' }
+        error: { nullable: true }
+    KnowledgeDocumentListApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/KnowledgeDocumentSummaryResponse' }
+        error: { nullable: true }
+    KnowledgeUploadApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/KnowledgeDocumentUploadResponse' }
+        error: { nullable: true }
+    KnowledgeDetailApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/KnowledgeDocumentDetailResponse' }
+        error: { nullable: true }
+    KnowledgeChunkPageApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/KnowledgeChunkPageResponse' }
+        error: { nullable: true }
+    KnowledgeDeletionApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/KnowledgeDocumentDeletionResponse' }
+        error: { nullable: true }
+    KnowledgeReindexApiResponse:
+      type: object
+      required: [success, data, error]
+      properties:
+        success: { type: boolean, enum: [true] }
+        data: { $ref: '#/components/schemas/KnowledgeReindexResponse' }
+        error: { nullable: true }
+    CaptchaResponse:
+      type: object
+      required: [captchaId, imageDataUrl, expiresInSeconds]
+      properties:
+        captchaId: { type: string, format: uuid }
+        imageDataUrl: { type: string, pattern: '^data:image/png;base64,' }
+        expiresInSeconds: { type: integer, enum: [300] }
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password, captchaId, captchaCode]
+      properties:
+        username: { type: string, minLength: 1 }
+        password: { type: string, format: password, minLength: 1, writeOnly: true }
+        captchaId: { type: string, minLength: 1 }
+        captchaCode: { type: string, minLength: 1, writeOnly: true }
+    LoginResponse:
+      type: object
+      required: [accessToken, tokenType, expiresAt, user]
+      properties:
+        accessToken: { type: string, writeOnly: true }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresAt: { type: string, format: date-time }
+        user: { $ref: '#/components/schemas/UserProfile' }
+    UserProfile:
+      type: object
+      required: [id, name, username, role]
+      properties:
+        id: { type: integer, format: int32, minimum: 1 }
+        name: { type: string, nullable: true }
+        username: { type: string }
+        role: { type: string, enum: [USER, ADMIN] }
+    TravelInterest:
+      type: string
+      enum: [FOOD, HISTORY, NATURE, PHOTOGRAPHY, SHOPPING]
+    TravelPace:
+      type: string
+      enum: [RELAXED, MODERATE, COMPACT]
+    TravelMode:
+      type: string
+      enum: [WALKING, TRANSIT, TAXI, DRIVING]
+    CompanionType:
+      type: string
+      enum: [SOLO, COUPLE, FAMILY, FRIENDS, SENIORS]
+    UserTravelPreferenceRequest:
+      type: object
+      description: Full replacement. Null clears an optional scalar; null interests becomes an empty set.
+      properties:
+        interests:
+          type: array
+          nullable: true
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/TravelInterest' }
+        pace:
+          allOf: [{ $ref: '#/components/schemas/TravelPace' }]
+          nullable: true
+        travelMode:
+          allOf: [{ $ref: '#/components/schemas/TravelMode' }]
+          nullable: true
+        accommodationPreference:
+          type: string
+          nullable: true
+          maxLength: 255
+    UserTravelPreferenceResponse:
+      type: object
+      required: [interests, pace, travelMode, accommodationPreference]
+      properties:
+        interests:
+          type: array
+          items: { $ref: '#/components/schemas/TravelInterest' }
+        pace:
+          allOf: [{ $ref: '#/components/schemas/TravelPace' }]
+          nullable: true
+        travelMode:
+          allOf: [{ $ref: '#/components/schemas/TravelMode' }]
+          nullable: true
+        accommodationPreference: { type: string, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+    TravelPlanningRequest:
+      type: object
+      description: Preference fields are tri-state; omitted/null means not provided, empty means explicit clear.
+      required: [destinationCity, startDate, endDate, travelers, totalBudget, companionType]
+      properties:
+        destinationCity: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        travelers: { type: integer, format: int32, minimum: 1 }
+        totalBudget: { type: number, minimum: 0, exclusiveMinimum: true }
+        companionType: { $ref: '#/components/schemas/CompanionType' }
+        interests:
+          type: array
+          nullable: true
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/TravelInterest' }
+        pace:
+          type: string
+          nullable: true
+          enum: ['', RELAXED, MODERATE, COMPACT]
+        accommodationAddress: { type: string, nullable: true }
+        travelMode:
+          type: string
+          nullable: true
+          enum: ['', WALKING, TRANSIT, TAXI, DRIVING]
+        specialRequirements: { type: string, nullable: true }
+        useSavedPreferences: { type: boolean, nullable: true, default: true }
+    PlanningTaskStatus:
+      type: string
+      enum: [PENDING, RUNNING, COMPLETED, NEEDS_ADJUSTMENT, FAILED]
+    PlanningTaskResponse:
+      type: object
+      required: [taskId, status, currentStep, progressPercent, createdAt, updatedAt]
+      properties:
+        taskId: { type: integer, format: int64, minimum: 1 }
+        status: { $ref: '#/components/schemas/PlanningTaskStatus' }
+        currentStep: { type: string }
+        progressPercent: { type: integer, minimum: 0, maximum: 100 }
+        planId: { type: integer, format: int64, minimum: 1, nullable: true }
+        errorCode: { type: string, nullable: true }
+        errorMessage: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PlanSummaryResponse:
+      type: object
+      required: [planId, destinationCity, startDate, endDate, currentVersion, status, createdAt, updatedAt]
+      properties:
+        planId: { type: integer, format: int64, minimum: 1 }
+        destinationCity: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        currentVersion: { type: integer, minimum: 0 }
+        status: { type: string, enum: [PLANNING, COMPLETED, NEEDS_ADJUSTMENT, FAILED] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AppliedPreferencesResponse:
+      type: object
+      required: [enabled, interests, adoptedFields]
+      properties:
+        enabled: { type: boolean }
+        interests:
+          type: array
+          items: { $ref: '#/components/schemas/TravelInterest' }
+        pace:
+          allOf: [{ $ref: '#/components/schemas/TravelPace' }]
+          nullable: true
+        travelMode:
+          allOf: [{ $ref: '#/components/schemas/TravelMode' }]
+          nullable: true
+        accommodationPreference: { type: string, nullable: true }
+        adoptedFields:
+          type: array
+          items: { type: string, enum: [interests, pace, travelMode, accommodationPreference] }
+    PlanEvidenceResponse:
+      type: object
+      properties:
+        type: { type: string, nullable: true }
+        documentTitle: { type: string, nullable: true }
+        publisher: { type: string, nullable: true }
+        sourceUrl: { type: string, format: uri, nullable: true }
+        chunkId: { type: integer, format: int64, minimum: 1, nullable: true }
+        quote: { type: string, nullable: true }
+    PlanCostResponse:
+      type: object
+      required: [estimated]
+      properties:
+        min: { type: number, nullable: true }
+        max: { type: number, nullable: true }
+        evidenceType: { type: string, nullable: true, enum: [API_FACT, DOCUMENT, AI_ESTIMATE] }
+        estimated: { type: boolean }
+    PlanTravelSegmentResponse:
+      type: object
+      required: [verified]
+      properties:
+        mode:
+          allOf: [{ $ref: '#/components/schemas/TravelMode' }]
+          nullable: true
+        distanceMeters: { type: integer, minimum: 0, nullable: true }
+        durationMinutes: { type: integer, minimum: 0, nullable: true }
+        verified: { type: boolean }
+    PlanItemResponse:
+      type: object
+      required: [startTime, endTime, poiId, poiName, cost, evidence]
+      properties:
+        startTime: { type: string, format: time }
+        endTime: { type: string, format: time }
+        poiId: { type: string }
+        poiName: { type: string }
+        address: { type: string, nullable: true }
+        activity: { type: string, nullable: true }
+        cost: { $ref: '#/components/schemas/PlanCostResponse' }
+        nextSegment:
+          allOf: [{ $ref: '#/components/schemas/PlanTravelSegmentResponse' }]
+          nullable: true
+        evidence:
+          type: array
+          items: { $ref: '#/components/schemas/PlanEvidenceResponse' }
+    PlanDayResponse:
+      type: object
+      required: [date, items]
+      properties:
+        date: { type: string, format: date }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PlanItemResponse' }
+    PlanWarningResponse:
+      type: object
+      required: [code, severity, message]
+      properties:
+        code: { type: string }
+        severity: { type: string, enum: [ERROR, WARNING] }
+        date: { type: string, format: date, nullable: true }
+        itemIndex: { type: integer, minimum: 0, nullable: true }
+        poiId: { type: string, nullable: true }
+        message: { type: string }
+        knownValue: { type: string, nullable: true }
+        requiredAdjustment: { type: string, nullable: true }
+    PlanMetricRatioResponse:
+      type: object
+      required: [numerator, denominator]
+      properties:
+        numerator: { type: integer, minimum: 0 }
+        denominator: { type: integer, minimum: 0 }
+        percentage: { type: number, minimum: 0, maximum: 100, nullable: true }
+    PlanMetricsResponse:
+      type: object
+      required: [sourceCoverage, routeCoverage, budgetCompleteness, rulePassRate]
+      properties:
+        sourceCoverage: { $ref: '#/components/schemas/PlanMetricRatioResponse' }
+        routeCoverage: { $ref: '#/components/schemas/PlanMetricRatioResponse' }
+        budgetCompleteness: { $ref: '#/components/schemas/PlanMetricRatioResponse' }
+        rulePassRate: { $ref: '#/components/schemas/PlanMetricRatioResponse' }
+    PlanVersionSummaryResponse:
+      type: object
+      required: [versionId, versionNumber, createdAt]
+      properties:
+        versionId: { type: integer, format: int64, minimum: 1 }
+        versionNumber: { type: integer, minimum: 1 }
+        createdAt: { type: string, format: date-time }
+    PlanDetailResponse:
+      type: object
+      required: [planId, status, currentVersion, destinationCity, startDate, endDate, summary, appliedPreferences, days, warnings, versions, createdAt, updatedAt]
+      properties:
+        planId: { type: integer, format: int64, minimum: 1 }
+        status: { type: string }
+        currentVersion: { type: integer, minimum: 0 }
+        destinationCity: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        summary: { type: string }
+        weather: { type: object, nullable: true, additionalProperties: true }
+        appliedPreferences: { $ref: '#/components/schemas/AppliedPreferencesResponse' }
+        days:
+          type: array
+          items: { $ref: '#/components/schemas/PlanDayResponse' }
+        warnings:
+          type: array
+          items: { $ref: '#/components/schemas/PlanWarningResponse' }
+        metrics:
+          allOf: [{ $ref: '#/components/schemas/PlanMetricsResponse' }]
+          nullable: true
+        versions:
+          type: array
+          items: { $ref: '#/components/schemas/PlanVersionSummaryResponse' }
+        estimatedTotalCost: { type: number, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PlanVersionResponse:
+      type: object
+      required: [versionId, versionNumber, destinationCity, startDate, endDate, estimatedTotalCost, days, warnings, metrics, createdAt]
+      properties:
+        versionId: { type: integer, format: int64, minimum: 1 }
+        versionNumber: { type: integer, minimum: 1 }
+        destinationCity: { type: string }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        estimatedTotalCost: { type: number }
+        days:
+          type: array
+          items: { $ref: '#/components/schemas/PlanDayResponse' }
+        warnings:
+          type: array
+          items: { $ref: '#/components/schemas/PlanWarningResponse' }
+        metrics: { $ref: '#/components/schemas/PlanMetricsResponse' }
+        createdAt: { type: string, format: date-time }
+    KnowledgeDocumentType:
+      type: string
+      enum: [OFFICIAL_NOTICE, ATTRACTION_GUIDE, TRANSPORT_GUIDE, MANUAL_CURATION]
+    KnowledgeDocumentStatus:
+      type: string
+      enum: [UPLOADED, INDEXING, ACTIVE, DISABLED, FAILED]
+    KnowledgeDocumentSummaryResponse:
+      type: object
+      required: [id, title, city, publisher, sourceUrl, publishedAt, documentType, status, chunkCount, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int64, minimum: 1 }
+        title: { type: string }
+        city: { type: string }
+        publisher: { type: string }
+        sourceUrl: { type: string, format: uri }
+        publishedAt: { type: string, format: date }
+        documentType: { $ref: '#/components/schemas/KnowledgeDocumentType' }
+        status: { $ref: '#/components/schemas/KnowledgeDocumentStatus' }
+        chunkCount: { type: integer, format: int64, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        failureReason: { type: string, nullable: true }
+    KnowledgeDocumentDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/KnowledgeDocumentSummaryResponse'
+        - type: object
+          required: [originalFilename, contentType, fileSize, sha256]
+          properties:
+            originalFilename: { type: string }
+            contentType: { type: string }
+            fileSize: { type: integer, format: int64, minimum: 0 }
+            sha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+    KnowledgeDocumentUploadResponse:
+      type: object
+      required: [id, title, status, originalFilename, storedFilename, contentType, fileSize, sha256]
+      properties:
+        id: { type: integer, format: int64, minimum: 1 }
+        title: { type: string }
+        status: { type: string, enum: [ACTIVE] }
+        originalFilename: { type: string }
+        storedFilename: { type: string }
+        contentType: { type: string }
+        fileSize: { type: integer, format: int64, minimum: 0 }
+        sha256: { type: string, pattern: '^[a-fA-F0-9]{64}$' }
+    KnowledgeChunkPreviewResponse:
+      type: object
+      required: [id, documentId, chunkIndex, content, createdAt]
+      properties:
+        id: { type: integer, format: int64, minimum: 1 }
+        documentId: { type: integer, format: int64, minimum: 1 }
+        chunkIndex: { type: integer, minimum: 0 }
+        content: { type: string }
+        createdAt: { type: string, format: date-time }
+    KnowledgeChunkPageResponse:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/KnowledgeChunkPreviewResponse' }
+        page: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1, maximum: 100 }
+        totalElements: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    KnowledgeDocumentDeletionResponse:
+      type: object
+      required: [id, deleted, deletedAt]
+      properties:
+        id: { type: integer, format: int64, minimum: 1 }
+        deleted: { type: boolean }
+        deletedAt: { type: string, format: date-time }
+    KnowledgeReindexResponse:
+      type: object
+      required: [activeDocumentCount, chunkCount, rebuiltAt]
+      properties:
+        activeDocumentCount: { type: integer, format: int64, minimum: 0 }
+        chunkCount: { type: integer, format: int64, minimum: 0 }
+        rebuiltAt: { type: string, format: date-time }
+security:
+  - bearerAuth: []
