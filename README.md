@@ -1,4 +1,4 @@
-# 多约束旅行规划 Agent
+# TripGuard｜多约束旅行规划 Agent
 
 一个基于 Java 21、Spring Boot、LangChain4j、MySQL、Redis 和 Vue 3 的旅行规划项目。系统把用户约束、结构化偏好、知识文档和受控数据源组装为有预算的模型上下文；模型只负责生成候选行程，Java 负责白名单、引用、路线、预算和时间规则校验，并在有界次数内自动修正。
 
